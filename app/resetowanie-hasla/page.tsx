@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+
 import { useState } from "react"
 import { getSupabaseClient } from "@/lib/supabase-client"
 import { Button } from "@/components/ui/button"
@@ -25,9 +26,13 @@ export default function ResetPasswordPage() {
     try {
       const supabase = getSupabaseClient()
 
-      // Pełny URL do strony aktualizacji hasła
-      const redirectTo = `${window.location.origin}/aktualizacja-hasla`
+      // Pobierz aktualny URL strony
+      const origin = window.location.origin
+      const redirectTo = `${origin}/aktualizacja-hasla`
 
+      console.log("Sending reset password email with redirect to:", redirectTo)
+
+      // Wyślij email z linkiem do resetowania hasła
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo,
       })
@@ -39,7 +44,7 @@ export default function ResetPasswordPage() {
       setSuccess(true)
     } catch (error: any) {
       console.error("Błąd resetowania hasła:", error)
-      setError("Wystąpił błąd podczas wysyłania linku do resetowania hasła. Spróbuj ponownie.")
+      setError(error.message || "Wystąpił błąd podczas wysyłania linku resetowania hasła. Spróbuj ponownie.")
     } finally {
       setLoading(false)
     }
@@ -53,27 +58,21 @@ export default function ResetPasswordPage() {
           <CardDescription>Resetowanie hasła</CardDescription>
         </CardHeader>
         <CardContent>
-          {error && (
+          {error ? (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
-          )}
+          ) : success ? (
+            <Alert className="mb-4 border-green-500 bg-green-50">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <AlertDescription className="text-green-700">
+                Link do resetowania hasła został wysłany na podany adres email. Sprawdź swoją skrzynkę odbiorczą.
+              </AlertDescription>
+            </Alert>
+          ) : null}
 
-          {success ? (
-            <>
-              <Alert className="mb-4 border-green-500 bg-green-50">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <AlertDescription className="text-green-700">
-                  Link do resetowania hasła został wysłany na adres {email}. Sprawdź swoją skrzynkę email i postępuj
-                  zgodnie z instrukcjami.
-                </AlertDescription>
-              </Alert>
-              <Button className="w-full mt-4" onClick={() => (window.location.href = "/logowanie")}>
-                Wróć do logowania
-              </Button>
-            </>
-          ) : (
+          {!success ? (
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -86,11 +85,20 @@ export default function ResetPasswordPage() {
                   required
                 />
               </div>
-
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Wysyłanie..." : "Wyślij link resetowania hasła"}
               </Button>
             </form>
+          ) : (
+            <div className="text-center">
+              <p className="text-sm text-gray-600 mt-4">
+                Nie otrzymałeś emaila? Sprawdź folder spam lub{" "}
+                <button onClick={() => setSuccess(false)} className="text-blue-600 hover:text-blue-500">
+                  spróbuj ponownie
+                </button>
+                .
+              </p>
+            </div>
           )}
         </CardContent>
         <CardFooter className="flex justify-center">

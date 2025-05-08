@@ -26,6 +26,7 @@ export function getSupabaseClient() {
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: "implicit",
+      debug: true,
     },
   })
 
