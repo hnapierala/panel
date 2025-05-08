@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 
 // Lista ścieżek publicznych, które nie wymagają uwierzytelnienia
 const publicPaths = ["/logowanie", "/resetowanie-hasla", "/aktualizacja-hasla", "/zaproszenie", "/kontakt"]
@@ -8,87 +7,50 @@ const publicPaths = ["/logowanie", "/resetowanie-hasla", "/aktualizacja-hasla", 
 export async function middleware(request: NextRequest) {
   const { pathname, search, hash } = request.nextUrl
 
-  // Sprawdź, czy ścieżka zawiera token uwierzytelniania
-  const hasAuthParam =
-    search.includes("token=") ||
-    search.includes("access_token=") ||
-    search.includes("refresh_token=") ||
-    search.includes("type=recovery") ||
+  console.log("Middleware: Przetwarzanie URL:", request.url)
+
+  // Sprawdź, czy to link zaproszenia
+  const isInviteLink =
+    pathname.includes("/auth/invite") ||
+    pathname.includes("/invite") ||
     search.includes("type=invite") ||
-    hash.includes("access_token=") ||
-    hash.includes("refresh_token=") ||
     hash.includes("type=invite") ||
-    hash.includes("type=recovery")
+    search.includes("token=") ||
+    hash.includes("token=") ||
+    search.includes("access_token=") ||
+    hash.includes("access_token=")
 
-  // Jeśli URL zawiera token uwierzytelniania, przekieruj do odpowiedniej strony
-  if (hasAuthParam) {
-    // Jeśli URL zawiera token zaproszenia, zawsze przekieruj do strony zaproszenia
-    if (search.includes("type=invite") || hash.includes("type=invite") || pathname.includes("/auth/invite")) {
-      console.log("Middleware: Wykryto zaproszenie, przekierowuję do /zaproszenie")
-      const url = new URL("/zaproszenie", request.url)
-      url.search = search
-      url.hash = hash
-      return NextResponse.redirect(url)
-    }
+  // Jeśli to link zaproszenia, przekieruj do strony zaproszenia
+  if (isInviteLink && !pathname.startsWith("/zaproszenie")) {
+    console.log("Middleware: Wykryto link zaproszenia, przekierowuję do /zaproszenie")
+    const url = new URL("/zaproszenie", request.url)
 
-    // Jeśli URL zawiera token resetowania hasła, przekieruj do strony aktualizacji hasła
-    if (search.includes("type=recovery") || hash.includes("type=recovery")) {
-      const url = new URL("/aktualizacja-hasla", request.url)
-      url.search = search
-      url.hash = hash
-      return NextResponse.redirect(url)
-    }
+    // Przekaż wszystkie parametry i fragment
+    url.search = search
+    url.hash = hash
 
-    // Jeśli URL zawiera token, ale nie jest to zaproszenie ani resetowanie hasła,
-    // przekieruj do strony aktualizacji hasła
-    if (pathname !== "/aktualizacja-hasla" && pathname !== "/zaproszenie") {
-      const url = new URL("/aktualizacja-hasla", request.url)
-      url.search = search
-      url.hash = hash
-      return NextResponse.redirect(url)
-    }
-
-    // Jeśli jesteśmy już na odpowiedniej stronie, kontynuuj
-    return NextResponse.next()
-  }
-
-  // Sprawdź, czy użytkownik jest zalogowany
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("Brak wymaganych zmiennych środowiskowych Supabase")
-    return NextResponse.next()
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  // Jeśli użytkownik nie jest zalogowany i próbuje uzyskać dostęp do chronionej ścieżki,
-  // przekieruj go do strony logowania
-  const isPublicPath = publicPaths.some((path) => pathname.startsWith(path))
-
-  if (!session && !isPublicPath) {
-    const url = new URL("/logowanie", request.url)
-    url.searchParams.set("redirect", pathname)
+    console.log("Middleware: Przekierowuję do:", url.toString())
     return NextResponse.redirect(url)
   }
 
-  // Jeśli użytkownik jest zalogowany i próbuje uzyskać dostęp do strony logowania,
-  // przekieruj go do dashboardu
-  if (session && isPublicPath && pathname !== "/zaproszenie" && pathname !== "/aktualizacja-hasla") {
-    const url = new URL("/dashboard", request.url)
+  // Sprawdź, czy to link resetowania hasła
+  const isResetLink =
+    pathname.includes("/auth/recovery") || search.includes("type=recovery") || hash.includes("type=recovery")
+
+  // Jeśli to link resetowania hasła, przekieruj do strony aktualizacji hasła
+  if (isResetLink && !pathname.startsWith("/aktualizacja-hasla")) {
+    console.log("Middleware: Wykryto link resetowania hasła, przekierowuję do /aktualizacja-hasla")
+    const url = new URL("/aktualizacja-hasla", request.url)
+
+    // Przekaż wszystkie parametry i fragment
+    url.search = search
+    url.hash = hash
+
+    console.log("Middleware: Przekierowuję do:", url.toString())
     return NextResponse.redirect(url)
   }
 
+  // Dla wszystkich innych ścieżek, kontynuuj normalne przetwarzanie
   return NextResponse.next()
 }
 

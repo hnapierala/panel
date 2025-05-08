@@ -17,11 +17,6 @@ const supabaseOptions = {
     detectSessionInUrl: false, // Wyłączamy automatyczne wykrywanie sesji w URL
     flowType: "implicit",
   },
-  global: {
-    headers: {
-      "x-application-name": "oze-system-panel",
-    },
-  },
 }
 
 // Singleton dla klienta po stronie klienta
@@ -47,7 +42,13 @@ export const getSupabaseServerClient = () => {
   }
 
   // Zawsze tworzymy nowego klienta po stronie serwera
-  return createClient<Database>(supabaseUrl, supabaseAnonKey, supabaseOptions)
+  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    ...supabaseOptions,
+    auth: {
+      ...supabaseOptions.auth,
+      persistSession: false,
+    },
+  })
 }
 
 // Domyślny klient Supabase
