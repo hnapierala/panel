@@ -3,217 +3,224 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export interface Database {
   public: {
     Tables: {
-      panels: {
+      accessories: {
         Row: {
+          category: string
+          created_at: string
           id: string
           name: string
-          power: number
           price: number
-          efficiency: number
-          warranty: number
-          dimensions: string | null
-          weight: number | null
-          manufacturer: string | null
-          type: string | null
-          created_at: string
           updated_at: string
         }
         Insert: {
+          category: string
+          created_at?: string
           id?: string
           name: string
-          power: number
           price: number
-          efficiency: number
-          warranty: number
-          dimensions?: string | null
-          weight?: number | null
-          manufacturer?: string | null
-          type?: string | null
-          created_at?: string
           updated_at?: string
         }
         Update: {
+          category?: string
+          created_at?: string
           id?: string
           name?: string
-          power?: number
           price?: number
-          efficiency?: number
-          warranty?: number
-          dimensions?: string | null
-          weight?: number | null
-          manufacturer?: string | null
-          type?: string | null
-          created_at?: string
           updated_at?: string
         }
-      }
-      inverters: {
-        Row: {
-          id: string
-          name: string
-          power: number
-          price: number
-          efficiency: number
-          warranty: number
-          phases: number
-          manufacturer: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          power: number
-          price: number
-          efficiency: number
-          warranty: number
-          phases: number
-          manufacturer?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          power?: number
-          price?: number
-          efficiency?: number
-          warranty?: number
-          phases?: number
-          manufacturer?: string | null
-          created_at?: string
-          updated_at?: string
-        }
+        Relationships: []
       }
       constructions: {
         Row: {
+          created_at: string
           id: string
           name: string
           price: number
           type: string
-          created_at: string
           updated_at: string
         }
         Insert: {
+          created_at?: string
           id?: string
           name: string
           price: number
           type: string
-          created_at?: string
           updated_at?: string
         }
         Update: {
+          created_at?: string
           id?: string
           name?: string
           price?: number
           type?: string
-          created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
-      accessories: {
+      inverters: {
         Row: {
-          id: string
-          name: string
-          price: number
-          category: string
           created_at: string
+          efficiency: number
+          id: string
+          manufacturer: string
+          name: string
+          phases: number
+          power: number
+          price: number
           updated_at: string
+          warranty: number
         }
         Insert: {
-          id?: string
-          name: string
-          price: number
-          category: string
           created_at?: string
+          efficiency: number
+          id?: string
+          manufacturer: string
+          name: string
+          phases: number
+          power: number
+          price: number
           updated_at?: string
+          warranty: number
         }
         Update: {
-          id?: string
-          name?: string
-          price?: number
-          category?: string
           created_at?: string
+          efficiency?: number
+          id?: string
+          manufacturer?: string
+          name?: string
+          phases?: number
+          power?: number
+          price?: number
           updated_at?: string
+          warranty?: number
         }
+        Relationships: []
       }
       labor: {
         Row: {
+          category: string
+          created_at: string
           id: string
           name: string
           price: number
-          category: string
-          created_at: string
           updated_at: string
         }
         Insert: {
+          category: string
+          created_at?: string
           id?: string
           name: string
           price: number
-          category: string
-          created_at?: string
           updated_at?: string
         }
         Update: {
+          category?: string
+          created_at?: string
           id?: string
           name?: string
           price?: number
-          category?: string
-          created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
-      rates: {
+      panels: {
         Row: {
-          id: string
-          name: string
-          value: number
-          type: string
           created_at: string
+          dimensions: string | null
+          efficiency: number
+          id: string
+          manufacturer: string
+          name: string
+          power: number
+          price: number
+          type: string
           updated_at: string
+          warranty: number
+          weight: number | null
         }
         Insert: {
-          id?: string
-          name: string
-          value: number
-          type: string
           created_at?: string
+          dimensions?: string | null
+          efficiency: number
+          id?: string
+          manufacturer: string
+          name: string
+          power: number
+          price: number
+          type: string
           updated_at?: string
+          warranty: number
+          weight?: number | null
         }
         Update: {
-          id?: string
-          name?: string
-          value?: number
-          type?: string
           created_at?: string
+          dimensions?: string | null
+          efficiency?: number
+          id?: string
+          manufacturer?: string
+          name?: string
+          power?: number
+          price?: number
+          type?: string
           updated_at?: string
+          warranty?: number
+          weight?: number | null
         }
+        Relationships: []
       }
       prices: {
         Row: {
+          created_at: string
           id: string
           name: string
-          value: number
           unit: string
-          created_at: string
           updated_at: string
+          value: number
         }
         Insert: {
+          created_at?: string
           id?: string
           name: string
-          value: number
           unit: string
-          created_at?: string
           updated_at?: string
+          value: number
         }
         Update: {
+          created_at?: string
           id?: string
           name?: string
-          value?: number
           unit?: string
-          created_at?: string
           updated_at?: string
+          value?: number
         }
+        Relationships: []
+      }
+      rates: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          type: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          type: string
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          type?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -223,6 +230,9 @@ export interface Database {
       [_ in never]: never
     }
     Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
       [_ in never]: never
     }
   }

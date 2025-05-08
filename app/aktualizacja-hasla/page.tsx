@@ -4,251 +4,243 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { getSupabaseClient } from "@/lib/supabase-client"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle2 } from "lucide-react"
+import Link from "next/link"
+import supabase from "@/lib/supabase-client"
 
 export default function UpdatePasswordPage() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-  const [tokenError, setTokenError] = useState<string | null>(null)
-  const [debugInfo, setDebugInfo] = useState<string>("")
-  const [manualMode, setManualMode] = useState(false)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [tokenType, setTokenType] = useState<string | null>(null)
+  const [showManualForm, setShowManualForm] = useState(false)
 
-  // Funkcja do parsowania fragmentu URL (części po #)
-  const parseHash = () => {
-    if (typeof window === "undefined") return {}
-
-    const hash = window.location.hash.substring(1)
-    const params: Record<string, string> = {}
-
-    if (hash) {
-      const pairs = hash.split("&")
-      pairs.forEach((pair) => {
-        const [key, value] = pair.split("=")
-        if (key && value) {
-          params[key] = decodeURIComponent(value)
-        }
-      })
-    }
-
-    return params
-  }
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   useEffect(() => {
-    const checkToken = async () => {
-      try {
-        // Pobierz parametry z URL i fragmentu
-        const queryParams = Object.fromEntries(searchParams.entries())
-        const hashParams = parseHash()
-        const fullUrl = typeof window !== "undefined" ? window.location.href : ""
+    // Wyloguj użytkownika na początku, aby zapobiec automatycznemu zalogowaniu
+    const logout = async () => {
+      await supabase.auth.signOut()
+    }
 
-        // Zapisz informacje debugowania
-        const debugText = `
-          Full URL: ${fullUrl}
-          Query Params: ${JSON.stringify(queryParams)}
-          Hash Params: ${JSON.stringify(hashParams)}
-        `
-        setDebugInfo(debugText)
-        console.log("Debug info:", debugText)
+    logout()
 
-        // Sprawdź, czy mamy token w parametrach lub fragmencie
-        const token = searchParams.get("token") || searchParams.get("access_token") || hashParams.access_token || ""
+    // Pobierz token z URL
+    const tokenFromParams = searchParams.get("token")
+    const typeFromParams = searchParams.get("type")
 
-        if (!token && !manualMode) {
-          setTokenError("Brak tokenu w URL. Sprawdź, czy używasz poprawnego linku z emaila.")
-          return
-        }
+    // Pobierz token z fragmentu URL (po #)
+    const hashParams = new URLSearchParams(window.location.hash.substring(1))
+    const accessToken = hashParams.get("access_token")
+    const typeFromHash = hashParams.get("type")
 
-        // Jeśli jesteśmy w trybie manualnym, nie sprawdzaj tokenu
-        if (manualMode) {
-          return
-        }
+    if (tokenFromParams) {
+      setToken(tokenFromParams)
+      setTokenType(typeFromParams)
+    } else if (accessToken) {
+      setToken(accessToken)
+      setTokenType(typeFromHash)
 
-        // Sprawdź, czy token jest ważny
-        const supabase = getSupabaseClient()
+      // Jeśli mamy access_token w hash, spróbujmy ustawić sesję
+      const setSession = async () => {
+        const refreshToken = hashParams.get("refresh_token") || ""
+        const expiresIn = Number.parseInt(hashParams.get("expires_in") || "0")
 
-        // Jeśli mamy token w fragmencie URL, spróbuj ustawić sesję
-        if (hashParams.access_token) {
-          const { data, error } = await supabase.auth.setSession({
-            access_token: hashParams.access_token,
-            refresh_token: hashParams.refresh_token || "",
+        try {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            expires_in: expiresIn,
           })
 
           if (error) {
-            console.error("Błąd ustawiania sesji:", error)
-            setTokenError("Token jest nieprawidłowy lub wygasł. Spróbuj zresetować hasło ponownie.")
-            return
+            console.error("Błąd podczas ustawiania sesji:", error)
           }
+        } catch (error) {
+          console.error("Błąd podczas ustawiania sesji:", error)
         }
-
-        // Sprawdź, czy mamy sesję
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-
-        if (!session) {
-          setTokenError("Nie można zweryfikować sesji. Spróbuj zresetować hasło ponownie.")
-        }
-      } catch (error) {
-        console.error("Błąd podczas sprawdzania tokenu:", error)
-        setTokenError("Wystąpił błąd podczas weryfikacji tokenu. Spróbuj ponownie później.")
       }
+
+      setSession()
+    } else {
+      setError("Brak tokenu w URL. Sprawdź, czy używasz poprawnego linku z emaila.")
     }
 
-    checkToken()
-  }, [searchParams, manualMode])
+    setLoading(false)
+  }, [searchParams])
 
-  const handleUpdatePassword = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (password !== confirmPassword) {
+      setError("Hasła nie są zgodne")
+      return
+    }
+
+    if (password.length < 8) {
+      setError("Hasło musi mieć co najmniej 8 znaków")
+      return
+    }
+
     setLoading(true)
     setError(null)
 
-    // Sprawdź, czy hasła są zgodne
-    if (password !== confirmPassword) {
-      setError("Hasła nie są zgodne")
-      setLoading(false)
-      return
-    }
-
-    // Sprawdź, czy hasło ma odpowiednią długość
-    if (password.length < 8) {
-      setError("Hasło musi mieć co najmniej 8 znaków")
-      setLoading(false)
-      return
-    }
-
     try {
-      const supabase = getSupabaseClient()
+      // Sprawdź, czy użytkownik ma aktywną sesję
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-      // Aktualizuj hasło
-      const { error } = await supabase.auth.updateUser({
-        password: password,
-      })
+      if (session) {
+        // Jeśli użytkownik ma sesję, zaktualizuj hasło
+        const { error } = await supabase.auth.updateUser({
+          password: password,
+        })
 
-      if (error) {
-        throw error
+        if (error) {
+          throw error
+        }
+
+        setSuccess("Hasło zostało pomyślnie zaktualizowane. Przekierowywanie do dashboardu...")
+
+        // Przekieruj do dashboardu
+        setTimeout(() => {
+          router.push("/dashboard")
+        }, 2000)
+      } else if (token) {
+        // Jeśli użytkownik nie ma sesji, ale mamy token, spróbuj zweryfikować token
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: token,
+          type: "recovery",
+        })
+
+        if (error) {
+          throw error
+        }
+
+        // Zaktualizuj hasło
+        const { error: updateError } = await supabase.auth.updateUser({
+          password: password,
+        })
+
+        if (updateError) {
+          throw updateError
+        }
+
+        setSuccess("Hasło zostało pomyślnie zaktualizowane. Przekierowywanie do dashboardu...")
+
+        // Przekieruj do dashboardu
+        setTimeout(() => {
+          router.push("/dashboard")
+        }, 2000)
+      } else {
+        throw new Error("Brak tokenu lub sesji. Nie można zaktualizować hasła.")
       }
-
-      setSuccess(true)
-
-      // Przekieruj do dashboardu po 3 sekundach
-      setTimeout(() => {
-        router.push("/dashboard")
-      }, 3000)
     } catch (error: any) {
-      console.error("Błąd aktualizacji hasła:", error)
-      setError(error.message || "Wystąpił błąd podczas aktualizacji hasła. Spróbuj ponownie.")
+      setError(error.message || "Wystąpił błąd podczas aktualizacji hasła")
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">OZE System</CardTitle>
-          <CardDescription>
-            {tokenError && !manualMode ? "Problem z resetowaniem hasła" : "Ustaw nowe hasło"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {tokenError && !manualMode ? (
-            <>
-              <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{tokenError}</AlertDescription>
-              </Alert>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+        <h1 className="text-2xl font-bold mb-6 text-center">OZE System</h1>
+        <h2 className="text-xl mb-6 text-center text-gray-600">Aktualizacja hasła</h2>
 
-              <div className="mt-4">
-                <Button className="w-full" variant="outline" onClick={() => setManualMode(true)}>
-                  Spróbuj ustawić hasło ręcznie
-                </Button>
+        {loading ? (
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+            <p className="mt-4">Inicjalizacja...</p>
+          </div>
+        ) : (
+          <>
+            {error && (
+              <div
+                className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 relative"
+                role="alert"
+              >
+                <span className="block sm:inline">{error}</span>
               </div>
+            )}
 
-              <div className="mt-4">
-                <Button className="w-full" onClick={() => router.push("/logowanie")}>
-                  Wróć do logowania
-                </Button>
+            {success && (
+              <div
+                className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4 relative"
+                role="alert"
+              >
+                <span className="block sm:inline">{success}</span>
               </div>
+            )}
 
-              <details className="mt-4 text-xs text-gray-500">
-                <summary>Informacje debugowania (dla administratora)</summary>
-                <pre className="mt-2 whitespace-pre-wrap bg-gray-100 p-2 rounded text-xs">{debugInfo}</pre>
-              </details>
-            </>
-          ) : error ? (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : success ? (
-            <Alert className="mb-4 border-green-500 bg-green-50">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <AlertDescription className="text-green-700">
-                Hasło zostało pomyślnie zmienione. Za chwilę zostaniesz przekierowany do dashboardu.
-              </AlertDescription>
-            </Alert>
-          ) : null}
+            {!success && (
+              <>
+                {token || showManualForm ? (
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                        Nowe hasło
+                      </label>
+                      <input
+                        type="password"
+                        id="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        required
+                        minLength={8}
+                      />
+                    </div>
 
-          {(!tokenError || manualMode) && !success && (
-            <form onSubmit={handleUpdatePassword} className="space-y-4">
-              {manualMode && (
-                <Alert className="mb-4 bg-blue-50 border-blue-500">
-                  <AlertDescription className="text-blue-700">
-                    Tryb ręczny: Możesz ustawić nowe hasło, jeśli jesteś już zalogowany lub masz ważną sesję.
-                  </AlertDescription>
-                </Alert>
-              )}
+                    <div>
+                      <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+                        Potwierdź hasło
+                      </label>
+                      <input
+                        type="password"
+                        id="confirmPassword"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        required
+                        minLength={8}
+                      />
+                    </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Nowe hasło</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    >
+                      {loading ? "Aktualizowanie..." : "Zaktualizuj hasło"}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="text-center">
+                    <p className="mb-4">Brak tokenu w URL. Możesz spróbować ustawić hasło ręcznie.</p>
+                    <button
+                      onClick={() => setShowManualForm(true)}
+                      className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      Spróbuj ustawić hasło ręcznie
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
 
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Potwierdź nowe hasło</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
-              </div>
-
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Aktualizowanie..." : "Ustaw nowe hasło"}
-              </Button>
-            </form>
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-center">
-          <p className="text-sm text-gray-600">
-            <a href="/logowanie" className="text-blue-600 hover:text-blue-500">
-              Wróć do logowania
-            </a>
-          </p>
-        </CardFooter>
-      </Card>
+            <div className="mt-6 text-center">
+              <Link href="/logowanie" className="text-sm text-blue-600 hover:text-blue-500">
+                Wróć do logowania
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

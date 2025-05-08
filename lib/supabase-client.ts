@@ -6,43 +6,50 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Brak zmiennych środowiskowych NEXT_PUBLIC_SUPABASE_URL lub NEXT_PUBLIC_SUPABASE_ANON_KEY")
+  console.error("Brak wymaganych zmiennych środowiskowych Supabase")
+}
+
+// Opcje klienta Supabase
+const supabaseOptions = {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: "implicit",
+  },
+  global: {
+    headers: {
+      "x-application-name": "oze-system-panel",
+    },
+  },
 }
 
 // Singleton dla klienta po stronie klienta
-let clientSingleton: ReturnType<typeof createClient<Database>> | null = null
+let supabaseClient: ReturnType<typeof createClient> | null = null
 
-// Funkcja do tworzenia klienta po stronie klienta
-export function getSupabaseClient() {
-  if (clientSingleton) return clientSingleton
-
+// Funkcja do tworzenia klienta Supabase po stronie klienta
+export const getSupabaseClient = () => {
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Brak zmiennych środowiskowych NEXT_PUBLIC_SUPABASE_URL lub NEXT_PUBLIC_SUPABASE_ANON_KEY")
+    throw new Error("Brak wymaganych zmiennych środowiskowych Supabase")
   }
 
-  clientSingleton = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      flowType: "implicit",
-      debug: true,
-    },
-  })
-
-  return clientSingleton
-}
-
-// Funkcja do tworzenia klienta po stronie serwera
-export function createSupabaseServerClient() {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Brak zmiennych środowiskowych NEXT_PUBLIC_SUPABASE_URL lub NEXT_PUBLIC_SUPABASE_ANON_KEY")
+  if (!supabaseClient) {
+    supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, supabaseOptions)
   }
 
-  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  })
+  return supabaseClient
 }
+
+// Funkcja do tworzenia klienta Supabase po stronie serwera
+export const getSupabaseServerClient = () => {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Brak wymaganych zmiennych środowiskowych Supabase")
+  }
+
+  // Zawsze tworzymy nowego klienta po stronie serwera
+  return createClient<Database>(supabaseUrl, supabaseAnonKey, supabaseOptions)
+}
+
+// Domyślny klient Supabase
+const supabase = getSupabaseClient()
+export default supabase
