@@ -25,15 +25,37 @@ export function getSupabaseClient() {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      flowType: "pkce",
-      storageKey: "supabase.auth.token",
-      debug: true, // Włącz debugowanie
+      flowType: "implicit", // Zmieniono z "pkce" na "implicit" dla lepszej kompatybilności
+      storage: {
+        // Niestandardowa implementacja storage dla lepszej kompatybilności
+        getItem: (key) => {
+          try {
+            const item = localStorage.getItem(key)
+            return item
+          } catch (error) {
+            console.error("Błąd podczas pobierania z localStorage:", error)
+            return null
+          }
+        },
+        setItem: (key, value) => {
+          try {
+            localStorage.setItem(key, value)
+          } catch (error) {
+            console.error("Błąd podczas zapisywania do localStorage:", error)
+          }
+        },
+        removeItem: (key) => {
+          try {
+            localStorage.removeItem(key)
+          } catch (error) {
+            console.error("Błąd podczas usuwania z localStorage:", error)
+          }
+        },
+      },
     },
     global: {
-      fetch: (...args) => {
-        // Dodaj niestandardowy fetch dla lepszego debugowania
-        console.log("Supabase fetch request:", args[0])
-        return fetch(...args)
+      headers: {
+        "X-Client-Info": "supabase-js-v2",
       },
     },
   })

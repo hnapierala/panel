@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 
 export default function LoginPage() {
@@ -19,10 +19,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [debugInfo, setDebugInfo] = useState<any>(null)
-  const [showDebug, setShowDebug] = useState(false)
+  const [success, setSuccess] = useState(false)
   const [useMagicLink, setUseMagicLink] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<string>("")
 
   // Sprawdź, czy użytkownik jest już zalogowany
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    setDebugInfo(null)
+    setSuccess(false)
 
     try {
       const supabase = getSupabaseClient()
@@ -66,7 +66,6 @@ export default function LoginPage() {
         }
 
         setMagicLinkSent(true)
-        setDebugInfo({ type: "magic_link", data })
       } else {
         // Standardowe logowanie przez hasło
         console.log("Próba logowania z email:", email)
@@ -76,60 +75,29 @@ export default function LoginPage() {
           password,
         })
 
-        setDebugInfo({ type: "password", data, error })
-
         if (error) {
           throw error
         }
 
+        setSuccess(true)
         console.log("Logowanie udane, przekierowuję do dashboardu")
 
         // Dodaj małe opóźnienie przed przekierowaniem
         setTimeout(() => {
-          router.push("/dashboard")
-          router.refresh()
-        }, 500)
+          window.location.href = "/dashboard"
+        }, 1000)
       }
     } catch (error: any) {
       console.error("Błąd logowania:", error)
       setError(error.message || "Wystąpił błąd podczas logowania. Spróbuj ponownie.")
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  // Funkcja do bezpośredniego logowania (dla celów debugowania)
-  const handleDirectLogin = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      const supabase = getSupabaseClient()
-
-      // Próba ustawienia sesji bezpośrednio
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      setDebugInfo({ type: "direct_login", data, error })
-
-      if (error) {
-        throw error
-      }
-
-      // Sprawdź, czy sesja została utworzona
-      const sessionCheck = await supabase.auth.getSession()
-
-      if (sessionCheck.data.session) {
-        alert("Logowanie udane! Kliknij OK, aby przejść do dashboardu.")
-        window.location.href = "/dashboard"
-      } else {
-        throw new Error("Sesja nie została utworzona pomimo udanego logowania")
-      }
-    } catch (error: any) {
-      console.error("Błąd bezpośredniego logowania:", error)
-      setError(error.message || "Wystąpił błąd podczas bezpośredniego logowania.")
+      // Dodaj informacje debugowania
+      setDebugInfo(`
+        Typ błędu: ${error.name}
+        Wiadomość: ${error.message}
+        Kod: ${error.code || "brak"}
+        Status: ${error.status || "brak"}
+      `)
     } finally {
       setLoading(false)
     }
@@ -144,8 +112,9 @@ export default function LoginPage() {
             <CardDescription>Link do logowania wysłany</CardDescription>
           </CardHeader>
           <CardContent>
-            <Alert className="mb-4">
-              <AlertDescription>
+            <Alert className="mb-4 border-green-500 bg-green-50">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <AlertDescription className="text-green-700">
                 Link do logowania został wysłany na adres {email}. Sprawdź swoją skrzynkę email i kliknij link, aby się
                 zalogować.
               </AlertDescription>
@@ -179,6 +148,16 @@ export default function LoginPage() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+
+          {success && (
+            <Alert className="mb-4 border-green-500 bg-green-50">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <AlertDescription className="text-green-700">
+                Logowanie udane! Za chwilę zostaniesz przekierowany do dashboardu.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -227,32 +206,12 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {!useMagicLink && (
-            <Button
-              variant="outline"
-              className="w-full mt-4"
-              onClick={handleDirectLogin}
-              disabled={loading || !email || !password}
-            >
-              Alternatywne logowanie
-            </Button>
+          {debugInfo && (
+            <details className="mt-4 text-xs text-gray-500">
+              <summary>Informacje debugowania (dla administratora)</summary>
+              <pre className="mt-2 whitespace-pre-wrap bg-gray-100 p-2 rounded text-xs">{debugInfo}</pre>
+            </details>
           )}
-
-          <div className="mt-4">
-            <Button
-              variant="link"
-              className="p-0 h-auto text-xs text-gray-500"
-              onClick={() => setShowDebug(!showDebug)}
-            >
-              {showDebug ? "Ukryj informacje debugowania" : "Pokaż informacje debugowania"}
-            </Button>
-
-            {showDebug && debugInfo && (
-              <div className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto max-h-40">
-                <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
-              </div>
-            )}
-          </div>
         </CardContent>
         <CardFooter className="flex justify-center">
           <p className="text-sm text-gray-600">

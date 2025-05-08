@@ -3,11 +3,14 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
-
   try {
+    // Utwórz odpowiedź, którą możemy modyfikować
+    const res = NextResponse.next()
+
+    // Utwórz klienta Supabase
     const supabase = createMiddlewareClient({ req, res })
 
+    // Pobierz sesję
     const {
       data: { session },
     } = await supabase.auth.getSession()
@@ -15,15 +18,10 @@ export async function middleware(req: NextRequest) {
     // Sprawdź, czy użytkownik jest zalogowany
     const isLoggedIn = !!session
 
-    // Dla celów debugowania
-    console.log("Middleware - URL:", req.nextUrl.pathname)
-    console.log("Middleware - isLoggedIn:", isLoggedIn)
-
     // Sprawdź, czy URL zawiera token resetowania hasła lub zaproszenia
     const url = req.nextUrl
     const hasAuthToken =
       url.searchParams.has("token") ||
-      url.searchParams.has("t") ||
       url.searchParams.has("access_token") ||
       url.searchParams.has("refresh_token") ||
       url.hash.includes("access_token=") ||
@@ -39,30 +37,24 @@ export async function middleware(req: NextRequest) {
 
     // Jeśli URL zawiera token, zawsze pozwól na dostęp (nie przekierowuj)
     if (hasAuthToken) {
-      console.log("Middleware - Token wykryty w URL, pomijam przekierowanie")
       return res
     }
 
     // Przekieruj niezalogowanych użytkowników z chronionych ścieżek do logowania
     if (isProtectedPath && !isLoggedIn) {
-      console.log("Middleware - Przekierowuję niezalogowanego użytkownika do logowania")
       return NextResponse.redirect(new URL("/logowanie", req.url))
     }
 
     // Przekieruj zalogowanych użytkowników z publicznych ścieżek do dashboardu
-    // Ale tylko jeśli nie ma tokenu w URL
-    if (isPublicPath && isLoggedIn && !hasAuthToken) {
-      console.log("Middleware - Przekierowuję zalogowanego użytkownika do dashboardu")
+    if (isPublicPath && isLoggedIn) {
       return NextResponse.redirect(new URL("/dashboard", req.url))
     }
 
     // Przekieruj z głównej strony do logowania lub dashboardu
     if (req.nextUrl.pathname === "/") {
       if (isLoggedIn) {
-        console.log("Middleware - Przekierowuję z głównej strony do dashboardu")
         return NextResponse.redirect(new URL("/dashboard", req.url))
       } else {
-        console.log("Middleware - Przekierowuję z głównej strony do logowania")
         return NextResponse.redirect(new URL("/logowanie", req.url))
       }
     }
@@ -70,7 +62,13 @@ export async function middleware(req: NextRequest) {
     return res
   } catch (error) {
     console.error("Błąd w middleware:", error)
-    return res
+
+    // W przypadku błędu, przekieruj do strony logowania
+    if (req.nextUrl.pathname.startsWith("/dashboard")) {
+      return NextResponse.redirect(new URL("/logowanie", req.url))
+    }
+
+    return NextResponse.next()
   }
 }
 
