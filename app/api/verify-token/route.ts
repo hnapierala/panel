@@ -16,12 +16,10 @@ export async function POST(request: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin()
 
     // Verify the token
-    const { data, error } = await supabaseAdmin.auth.admin.getUserById(
-      // We don't have the user ID yet, but we can verify the token
-      // This is just to check if the token is valid
-      // The actual user ID will be retrieved in the set-password endpoint
-      "dummy-id",
-    )
+    const { data, error } = await supabaseAdmin.auth.verifyOtp({
+      token_hash: token,
+      type: type as any,
+    })
 
     if (error) {
       console.error("Error verifying token:", error)
