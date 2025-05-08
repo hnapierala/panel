@@ -1,32 +1,47 @@
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/supabase"
 
-// Tworzenie klienta Supabase dla strony klienta (frontend)
-// Używamy wzorca singleton, aby uniknąć wielu instancji
-let supabaseClient: ReturnType<typeof createClient<Database>> | null = null
+// Sprawdź, czy zmienne środowiskowe są dostępne
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-export const getSupabaseClient = () => {
-  if (supabaseClient) return supabaseClient
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Brak zmiennych środowiskowych SUPABASE_URL lub SUPABASE_ANON_KEY")
-  }
-
-  supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey)
-  return supabaseClient
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error("Brak zmiennych środowiskowych NEXT_PUBLIC_SUPABASE_URL lub NEXT_PUBLIC_SUPABASE_ANON_KEY")
 }
 
-// Tworzenie klienta Supabase dla strony serwera (backend)
-export const createServerSupabaseClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+// Singleton dla klienta po stronie klienta
+let clientSingleton: ReturnType<typeof createClient<Database>> | null = null
+
+// Funkcja do tworzenia klienta po stronie klienta
+export function getSupabaseClient() {
+  if (clientSingleton) return clientSingleton
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Brak zmiennych środowiskowych SUPABASE_URL lub SUPABASE_ANON_KEY")
+    throw new Error("Brak zmiennych środowiskowych NEXT_PUBLIC_SUPABASE_URL lub NEXT_PUBLIC_SUPABASE_ANON_KEY")
   }
 
-  return createClient<Database>(supabaseUrl, supabaseAnonKey)
+  clientSingleton = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: "pkce",
+    },
+  })
+
+  return clientSingleton
+}
+
+// Funkcja do tworzenia klienta po stronie serwera
+export function createSupabaseServerClient() {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Brak zmiennych środowiskowych NEXT_PUBLIC_SUPABASE_URL lub NEXT_PUBLIC_SUPABASE_ANON_KEY")
+  }
+
+  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
 }

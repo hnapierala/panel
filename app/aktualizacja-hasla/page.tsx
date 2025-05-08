@@ -22,6 +22,11 @@ export default function UpdatePasswordPage() {
   const [success, setSuccess] = useState(false)
   const [tokenError, setTokenError] = useState<string | null>(null)
   const [email, setEmail] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<string>("")
+
+  // Pobierz wszystkie możliwe parametry z URL
+  const allParams = Object.fromEntries(searchParams.entries())
+  const fullUrl = typeof window !== "undefined" ? window.location.href : ""
 
   // Pobierz token z URL - sprawdź różne możliwe parametry
   const token =
@@ -29,39 +34,70 @@ export default function UpdatePasswordPage() {
     searchParams.get("t") ||
     searchParams.get("access_token") ||
     searchParams.get("refresh_token") ||
+    searchParams.get("code") ||
     ""
 
   // Pobierz typ tokenu (może być recovery lub invite)
   const type = searchParams.get("type") || "recovery"
 
   useEffect(() => {
-    console.log("Token:", token)
-    console.log("Type:", type)
-    console.log("All params:", Object.fromEntries(searchParams.entries()))
+    // Zapisz informacje debugowania
+    const debugText = `
+      Full URL: ${fullUrl}
+      Token: ${token}
+      Type: ${type}
+      All Params: ${JSON.stringify(allParams, null, 2)}
+    `
+    setDebugInfo(debugText)
+    console.log("Debug info:", debugText)
+
+    // Jeśli nie ma tokenu, pokaż błąd
+    if (!token) {
+      setTokenError("Brak tokenu w URL. Sprawdź, czy używasz poprawnego linku z emaila.")
+      return
+    }
 
     const verifyToken = async () => {
-      if (!token) {
-        setTokenError("Brak tokenu w URL. Sprawdź, czy używasz poprawnego linku z emaila.")
-        return
-      }
-
       try {
         const supabase = getSupabaseClient()
 
-        // Sprawdź, czy token jest ważny
-        const { data, error } = await supabase.auth.verifyOtp({
-          token_hash: token,
-          type: type === "invite" ? "invite" : "recovery",
-        })
+        // Najpierw spróbuj uzyskać sesję
+        const { data: sessionData } = await supabase.auth.getSession()
+        console.log("Session data:", sessionData)
 
-        if (error) {
-          console.error("Błąd weryfikacji tokenu:", error)
-          setTokenError("Token jest nieprawidłowy lub wygasł. Poproś o nowy link resetowania hasła.")
+        // Jeśli już mamy sesję, pobierz email
+        if (sessionData?.session?.user?.email) {
+          setEmail(sessionData.session.user.email)
           return
         }
 
-        // Pobierz email z sesji
-        if (data?.user?.email) {
+        // Jeśli nie mamy sesji, spróbuj zalogować się za pomocą tokenu
+        const { data, error } = await supabase.auth.exchangeCodeForSession(token)
+        console.log("Exchange code result:", { data, error })
+
+        if (error) {
+          console.error("Błąd wymiany kodu na sesję:", error)
+
+          // Spróbuj alternatywną metodę weryfikacji
+          try {
+            const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+              token_hash: token,
+              type: type === "invite" ? "invite" : "recovery",
+            })
+            console.log("Verify OTP result:", { verifyData, verifyError })
+
+            if (verifyError) {
+              throw verifyError
+            }
+
+            if (verifyData?.user?.email) {
+              setEmail(verifyData.user.email)
+            }
+          } catch (verifyErr) {
+            console.error("Błąd weryfikacji OTP:", verifyErr)
+            setTokenError("Token jest nieprawidłowy lub wygasł. Poproś o nowy link resetowania hasła.")
+          }
+        } else if (data?.user?.email) {
           setEmail(data.user.email)
         } else {
           setTokenError("Nie można pobrać adresu email. Spróbuj ponownie lub poproś o nowy link resetowania hasła.")
@@ -73,7 +109,7 @@ export default function UpdatePasswordPage() {
     }
 
     verifyToken()
-  }, [token, type, searchParams])
+  }, [token, type, searchParams, fullUrl, allParams])
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -136,10 +172,16 @@ export default function UpdatePasswordPage() {
         </CardHeader>
         <CardContent>
           {tokenError ? (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{tokenError}</AlertDescription>
-            </Alert>
+            <>
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{tokenError}</AlertDescription>
+              </Alert>
+              <details className="mt-4 text-xs text-gray-500">
+                <summary>Informacje debugowania (dla administratora)</summary>
+                <pre className="mt-2 whitespace-pre-wrap bg-gray-100 p-2 rounded text-xs">{debugInfo}</pre>
+              </details>
+            </>
           ) : error ? (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />

@@ -26,9 +26,15 @@ export default function ResetPasswordPage() {
     try {
       const supabase = getSupabaseClient()
 
+      // Pobierz aktualny URL strony
+      const origin = window.location.origin
+      const redirectUrl = `${origin}/aktualizacja-hasla`
+
+      console.log("Sending reset password email with redirect to:", redirectUrl)
+
       // Wyślij email z linkiem do resetowania hasła
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/aktualizacja-hasla`,
+        redirectTo: redirectUrl,
       })
 
       if (error) {
