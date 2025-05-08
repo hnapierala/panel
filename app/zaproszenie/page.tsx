@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { getSupabaseClient } from "@/lib/supabase-client"
@@ -22,46 +21,83 @@ export default function InvitationPage() {
   const [success, setSuccess] = useState(false)
   const [tokenError, setTokenError] = useState<string | null>(null)
   const [email, setEmail] = useState<string | null>(null)
-
-  // Pobierz token z URL
-  const token = searchParams.get("token") || searchParams.get("t") || ""
+  const [debugInfo, setDebugInfo] = useState<string>("")
 
   useEffect(() => {
-    const verifyToken = async () => {
-      if (!token) {
-        setTokenError("Brak tokenu zaproszenia w URL. Sprawdź, czy używasz poprawnego linku z emaila.")
+    // Wyświetl informacje debugowania
+    const currentUrl = window.location.href
+    const searchParamsObj: Record<string, string> = {}
+    searchParams.forEach((value, key) => {
+      searchParamsObj[key] = value
+    })
+
+    setDebugInfo(`
+      Pełny URL: ${currentUrl}
+      Parametry: ${JSON.stringify(searchParamsObj, null, 2)}
+      Fragment: ${window.location.hash}
+    `)
+
+    // Pobierz token z różnych możliwych miejsc
+    const token =
+      searchParams.get("token") ||
+      searchParams.get("t") ||
+      searchParams.get("access_token") ||
+      searchParams.get("code") ||
+      ""
+
+    const type = searchParams.get("type") || "invite"
+
+    console.log("Strona zaproszenia: Token:", token)
+    console.log("Strona zaproszenia: Typ:", type)
+
+    if (!token) {
+      // Spróbuj pobrać token z fragmentu URL (części po #)
+      const hash = window.location.hash
+      if (hash) {
+        const hashParams = new URLSearchParams(hash.substring(1))
+        const hashToken = hashParams.get("access_token") || hashParams.get("token") || hashParams.get("t") || ""
+
+        if (hashToken) {
+          console.log("Strona zaproszenia: Znaleziono token w fragmencie URL:", hashToken)
+          processToken(hashToken, hashParams.get("type") || type)
+          return
+        }
+      }
+
+      setTokenError("Brak tokenu zaproszenia w URL. Sprawdź, czy używasz poprawnego linku z emaila.")
+      return
+    }
+
+    processToken(token, type)
+  }, [searchParams])
+
+  const processToken = async (token: string, type: string) => {
+    try {
+      const supabase = getSupabaseClient()
+
+      // Spróbuj wymienić token na sesję
+      const { data, error } = await supabase.auth.verifyOtp({
+        token_hash: token,
+        type: type as any,
+      })
+
+      if (error) {
+        console.error("Błąd weryfikacji tokenu:", error)
+        setTokenError("Token zaproszenia jest nieprawidłowy lub wygasł. Poproś o nowe zaproszenie.")
         return
       }
 
-      try {
-        const supabase = getSupabaseClient()
-
-        // Sprawdź, czy token jest ważny i pobierz email
-        const { data, error } = await supabase.auth.verifyOtp({
-          token_hash: token,
-          type: "invite",
-        })
-
-        if (error) {
-          console.error("Błąd weryfikacji tokenu:", error)
-          setTokenError("Token zaproszenia jest nieprawidłowy lub wygasł. Poproś o nowe zaproszenie.")
-          return
-        }
-
-        // Pobierz email z sesji
-        if (data?.user?.email) {
-          setEmail(data.user.email)
-        } else {
-          setTokenError("Nie można pobrać adresu email. Spróbuj ponownie lub poproś o nowe zaproszenie.")
-        }
-      } catch (err) {
-        console.error("Błąd podczas weryfikacji tokenu:", err)
-        setTokenError("Wystąpił błąd podczas weryfikacji tokenu. Spróbuj ponownie później.")
+      // Pobierz email z sesji
+      if (data?.user?.email) {
+        setEmail(data.user.email)
+      } else {
+        setTokenError("Nie można pobrać adresu email. Spróbuj ponownie lub poproś o nowe zaproszenie.")
       }
+    } catch (err) {
+      console.error("Błąd podczas weryfikacji tokenu:", err)
+      setTokenError("Wystąpił błąd podczas weryfikacji tokenu. Spróbuj ponownie później.")
     }
-
-    verifyToken()
-  }, [token])
+  }
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -99,7 +135,7 @@ export default function InvitationPage() {
 
       // Przekieruj do dashboardu po 3 sekundach
       setTimeout(() => {
-        router.push("/dashboard")
+        window.location.href = "/dashboard"
       }, 3000)
     } catch (error: any) {
       console.error("Błąd ustawiania hasła:", error)
@@ -171,6 +207,11 @@ export default function InvitationPage() {
               </Button>
             </form>
           )}
+
+          <details className="mt-4 text-xs text-gray-500">
+            <summary>Informacje debugowania (dla administratora)</summary>
+            <pre className="mt-2 whitespace-pre-wrap bg-gray-100 p-2 rounded text-xs">{debugInfo}</pre>
+          </details>
         </CardContent>
         <CardFooter className="flex justify-center">
           <p className="text-sm text-gray-600">
