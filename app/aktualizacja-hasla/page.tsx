@@ -1,207 +1,78 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
 import { getSupabaseClient } from "@/lib/supabase-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
 
 export default function UpdatePasswordPage() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [tokenError, setTokenError] = useState<string | null>(null)
-  const [email, setEmail] = useState<string | null>(null)
-  const [debugInfo, setDebugInfo] = useState<string>("")
-  const [urlFragment, setUrlFragment] = useState<string>("")
-  const [fragmentParams, setFragmentParams] = useState<Record<string, string>>({})
 
-  // Pobierz wszystkie możliwe parametry z URL
-  const allParams = Object.fromEntries(searchParams.entries())
-  const fullUrl = typeof window !== "undefined" ? window.location.href : ""
-
+  // Sprawdź token w URL
   useEffect(() => {
-    // Pobierz fragment URL (część po #)
-    if (typeof window !== "undefined") {
-      const fragment = window.location.hash.substring(1) // usuń znak #
-      setUrlFragment(fragment)
+    const handleHashChange = async () => {
+      try {
+        const hash = window.location.hash
+        if (hash && hash.includes("access_token=")) {
+          // Token jest w URL, próbujemy go przetworzyć
+          const supabase = getSupabaseClient()
+          const { error } = await supabase.auth.getSession()
 
-      // Parsuj fragment jako parametry URL
-      const params: Record<string, string> = {}
-      if (fragment) {
-        const pairs = fragment.split("&")
-        pairs.forEach((pair) => {
-          const [key, value] = pair.split("=")
-          if (key && value) {
-            params[key] = decodeURIComponent(value)
+          if (error) {
+            setTokenError("Nieprawidłowy lub wygasły token. Spróbuj zresetować hasło ponownie.")
           }
-        })
+        } else if (!hash) {
+          // Brak tokenu w URL
+          setTokenError("Brak tokenu w URL. Sprawdź, czy używasz poprawnego linku z emaila.")
+        }
+      } catch (err) {
+        console.error("Błąd podczas przetwarzania tokenu:", err)
+        setTokenError("Wystąpił błąd podczas przetwarzania tokenu. Spróbuj zresetować hasło ponownie.")
       }
-      setFragmentParams(params)
+    }
+
+    handleHashChange()
+
+    // Nasłuchuj na zmiany w hash (fragment URL)
+    window.addEventListener("hashchange", handleHashChange)
+    return () => {
+      window.removeEventListener("hashchange", handleHashChange)
     }
   }, [])
 
-  // Pobierz token z parametrów zapytania lub fragmentu URL
-  const token =
-    searchParams.get("token") ||
-    searchParams.get("t") ||
-    searchParams.get("access_token") ||
-    searchParams.get("refresh_token") ||
-    searchParams.get("code") ||
-    fragmentParams.access_token ||
-    fragmentParams.token ||
-    fragmentParams.t ||
-    fragmentParams.refresh_token ||
-    fragmentParams.code ||
-    ""
-
-  // Pobierz typ tokenu (może być recovery lub invite)
-  const type = searchParams.get("type") || fragmentParams.type || "recovery"
-
-  useEffect(() => {
-    // Zapisz informacje debugowania
-    const debugText = `
-      Full URL: ${fullUrl}
-      Token: ${token}
-      Type: ${type}
-      URL Fragment: ${urlFragment}
-      Fragment Params: ${JSON.stringify(fragmentParams, null, 2)}
-      Query Params: ${JSON.stringify(allParams, null, 2)}
-    `
-    setDebugInfo(debugText)
-    console.log("Debug info:", debugText)
-
-    // Jeśli nie ma tokenu, pokaż błąd
-    if (!token) {
-      setTokenError("Brak tokenu w URL. Sprawdź, czy używasz poprawnego linku z emaila.")
-      return
-    }
-
-    const verifyToken = async () => {
-      try {
-        const supabase = getSupabaseClient()
-
-        // Najpierw spróbuj uzyskać sesję
-        const { data: sessionData } = await supabase.auth.getSession()
-        console.log("Session data:", sessionData)
-
-        // Jeśli już mamy sesję, pobierz email
-        if (sessionData?.session?.user?.email) {
-          setEmail(sessionData.session.user.email)
-          return
-        }
-
-        // Jeśli mamy token w fragmencie URL, spróbuj go użyć bezpośrednio
-        if (fragmentParams.access_token) {
-          try {
-            // Ustaw sesję ręcznie za pomocą tokenu
-            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-              access_token: fragmentParams.access_token,
-              refresh_token: fragmentParams.refresh_token || "",
-            })
-
-            console.log("Set session result:", { sessionData, sessionError })
-
-            if (sessionError) {
-              throw sessionError
-            }
-
-            if (sessionData?.user?.email) {
-              setEmail(sessionData.user.email)
-              return
-            }
-          } catch (err) {
-            console.error("Błąd ustawiania sesji:", err)
-          }
-        }
-
-        // Jeśli nie udało się ustawić sesji, spróbuj inne metody
-        try {
-          // Spróbuj wymienić kod na sesję
-          const { data, error } = await supabase.auth.exchangeCodeForSession(token)
-          console.log("Exchange code result:", { data, error })
-
-          if (error) {
-            throw error
-          }
-
-          if (data?.user?.email) {
-            setEmail(data.user.email)
-            return
-          }
-        } catch (exchangeErr) {
-          console.error("Błąd wymiany kodu na sesję:", exchangeErr)
-
-          // Spróbuj alternatywną metodę weryfikacji
-          try {
-            const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
-              token_hash: token,
-              type: type === "invite" ? "invite" : "recovery",
-            })
-            console.log("Verify OTP result:", { verifyData, verifyError })
-
-            if (verifyError) {
-              throw verifyError
-            }
-
-            if (verifyData?.user?.email) {
-              setEmail(verifyData.user.email)
-              return
-            }
-          } catch (verifyErr) {
-            console.error("Błąd weryfikacji OTP:", verifyErr)
-          }
-        }
-
-        // Jeśli dotarliśmy tutaj, nie udało się zweryfikować tokenu
-        setTokenError("Token jest nieprawidłowy lub wygasł. Poproś o nowy link resetowania hasła.")
-      } catch (err) {
-        console.error("Błąd podczas weryfikacji tokenu:", err)
-        setTokenError("Wystąpił błąd podczas weryfikacji tokenu. Spróbuj ponownie później.")
-      }
-    }
-
-    if (token) {
-      verifyToken()
-    }
-  }, [token, type, searchParams, fullUrl, allParams, urlFragment, fragmentParams])
-
-  const handleSetPassword = async (e: React.FormEvent) => {
+  const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
-    setError(null)
-    setSuccess(false)
 
     // Sprawdź, czy hasła są zgodne
     if (password !== confirmPassword) {
       setError("Hasła nie są zgodne")
-      setLoading(false)
       return
     }
 
     // Sprawdź, czy hasło ma odpowiednią długość
     if (password.length < 8) {
       setError("Hasło musi mieć co najmniej 8 znaków")
-      setLoading(false)
       return
     }
+
+    setLoading(true)
+    setError(null)
 
     try {
       const supabase = getSupabaseClient()
 
-      // Ustaw nowe hasło
       const { error } = await supabase.auth.updateUser({
-        password: password,
+        password,
       })
 
       if (error) {
@@ -210,16 +81,39 @@ export default function UpdatePasswordPage() {
 
       setSuccess(true)
 
-      // Przekieruj do dashboardu po 3 sekundach
+      // Po 3 sekundach przekieruj do dashboardu
       setTimeout(() => {
-        router.push("/dashboard")
+        window.location.href = "/dashboard"
       }, 3000)
     } catch (error: any) {
-      console.error("Błąd ustawiania hasła:", error)
-      setError(error.message || "Wystąpił błąd podczas ustawiania hasła. Spróbuj ponownie.")
+      console.error("Błąd aktualizacji hasła:", error)
+      setError("Wystąpił błąd podczas aktualizacji hasła. Spróbuj ponownie.")
     } finally {
       setLoading(false)
     }
+  }
+
+  // Jeśli jest błąd tokenu, pokaż komunikat
+  if (tokenError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold">OZE System</CardTitle>
+            <CardDescription>Problem z resetowaniem hasła</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{tokenError}</AlertDescription>
+            </Alert>
+            <Button className="w-full mt-4" onClick={() => (window.location.href = "/logowanie")}>
+              Wróć do logowania
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -227,42 +121,25 @@ export default function UpdatePasswordPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">OZE System</CardTitle>
-          <CardDescription>
-            {tokenError
-              ? "Problem z resetowaniem hasła"
-              : email
-                ? `Ustaw nowe hasło dla konta ${email}`
-                : "Ustaw nowe hasło dla swojego konta"}
-          </CardDescription>
+          <CardDescription>Ustaw nowe hasło</CardDescription>
         </CardHeader>
         <CardContent>
-          {tokenError ? (
-            <>
-              <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{tokenError}</AlertDescription>
-              </Alert>
-              <details className="mt-4 text-xs text-gray-500">
-                <summary>Informacje debugowania (dla administratora)</summary>
-                <pre className="mt-2 whitespace-pre-wrap bg-gray-100 p-2 rounded text-xs">{debugInfo}</pre>
-              </details>
-            </>
-          ) : error ? (
+          {error && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
-          ) : success ? (
+          )}
+
+          {success ? (
             <Alert className="mb-4 border-green-500 bg-green-50">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
               <AlertDescription className="text-green-700">
-                Hasło zostało pomyślnie zmienione. Za chwilę zostaniesz przekierowany do dashboardu.
+                Hasło zostało pomyślnie zaktualizowane. Za chwilę zostaniesz przekierowany do dashboardu.
               </AlertDescription>
             </Alert>
-          ) : null}
-
-          {!tokenError && !success && (
-            <form onSubmit={handleSetPassword} className="space-y-4">
+          ) : (
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="password">Nowe hasło</Label>
                 <Input
@@ -274,6 +151,7 @@ export default function UpdatePasswordPage() {
                   required
                 />
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Potwierdź nowe hasło</Label>
                 <Input
@@ -285,19 +163,13 @@ export default function UpdatePasswordPage() {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={loading || !email}>
-                {loading ? "Ustawianie hasła..." : "Ustaw nowe hasło i zaloguj się"}
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Aktualizowanie..." : "Ustaw nowe hasło"}
               </Button>
             </form>
           )}
         </CardContent>
-        <CardFooter className="flex justify-center">
-          <p className="text-sm text-gray-600">
-            <a href="/logowanie" className="text-blue-600 hover:text-blue-500">
-              Wróć do logowania
-            </a>
-          </p>
-        </CardFooter>
       </Card>
     </div>
   )

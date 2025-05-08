@@ -25,38 +25,7 @@ export function getSupabaseClient() {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      flowType: "implicit", // Zmieniono z "pkce" na "implicit" dla lepszej kompatybilności
-      storage: {
-        // Niestandardowa implementacja storage dla lepszej kompatybilności
-        getItem: (key) => {
-          try {
-            const item = localStorage.getItem(key)
-            return item
-          } catch (error) {
-            console.error("Błąd podczas pobierania z localStorage:", error)
-            return null
-          }
-        },
-        setItem: (key, value) => {
-          try {
-            localStorage.setItem(key, value)
-          } catch (error) {
-            console.error("Błąd podczas zapisywania do localStorage:", error)
-          }
-        },
-        removeItem: (key) => {
-          try {
-            localStorage.removeItem(key)
-          } catch (error) {
-            console.error("Błąd podczas usuwania z localStorage:", error)
-          }
-        },
-      },
-    },
-    global: {
-      headers: {
-        "X-Client-Info": "supabase-js-v2",
-      },
+      flowType: "implicit",
     },
   })
 
