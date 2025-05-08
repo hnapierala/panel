@@ -23,22 +23,50 @@ export default function UpdatePasswordPage() {
   const [tokenError, setTokenError] = useState<string | null>(null)
   const [email, setEmail] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState<string>("")
+  const [urlFragment, setUrlFragment] = useState<string>("")
+  const [fragmentParams, setFragmentParams] = useState<Record<string, string>>({})
 
   // Pobierz wszystkie możliwe parametry z URL
   const allParams = Object.fromEntries(searchParams.entries())
   const fullUrl = typeof window !== "undefined" ? window.location.href : ""
 
-  // Pobierz token z URL - sprawdź różne możliwe parametry
+  useEffect(() => {
+    // Pobierz fragment URL (część po #)
+    if (typeof window !== "undefined") {
+      const fragment = window.location.hash.substring(1) // usuń znak #
+      setUrlFragment(fragment)
+
+      // Parsuj fragment jako parametry URL
+      const params: Record<string, string> = {}
+      if (fragment) {
+        const pairs = fragment.split("&")
+        pairs.forEach((pair) => {
+          const [key, value] = pair.split("=")
+          if (key && value) {
+            params[key] = decodeURIComponent(value)
+          }
+        })
+      }
+      setFragmentParams(params)
+    }
+  }, [])
+
+  // Pobierz token z parametrów zapytania lub fragmentu URL
   const token =
     searchParams.get("token") ||
     searchParams.get("t") ||
     searchParams.get("access_token") ||
     searchParams.get("refresh_token") ||
     searchParams.get("code") ||
+    fragmentParams.access_token ||
+    fragmentParams.token ||
+    fragmentParams.t ||
+    fragmentParams.refresh_token ||
+    fragmentParams.code ||
     ""
 
   // Pobierz typ tokenu (może być recovery lub invite)
-  const type = searchParams.get("type") || "recovery"
+  const type = searchParams.get("type") || fragmentParams.type || "recovery"
 
   useEffect(() => {
     // Zapisz informacje debugowania
@@ -46,7 +74,9 @@ export default function UpdatePasswordPage() {
       Full URL: ${fullUrl}
       Token: ${token}
       Type: ${type}
-      All Params: ${JSON.stringify(allParams, null, 2)}
+      URL Fragment: ${urlFragment}
+      Fragment Params: ${JSON.stringify(fragmentParams, null, 2)}
+      Query Params: ${JSON.stringify(allParams, null, 2)}
     `
     setDebugInfo(debugText)
     console.log("Debug info:", debugText)
@@ -71,12 +101,46 @@ export default function UpdatePasswordPage() {
           return
         }
 
-        // Jeśli nie mamy sesji, spróbuj zalogować się za pomocą tokenu
-        const { data, error } = await supabase.auth.exchangeCodeForSession(token)
-        console.log("Exchange code result:", { data, error })
+        // Jeśli mamy token w fragmencie URL, spróbuj go użyć bezpośrednio
+        if (fragmentParams.access_token) {
+          try {
+            // Ustaw sesję ręcznie za pomocą tokenu
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              access_token: fragmentParams.access_token,
+              refresh_token: fragmentParams.refresh_token || "",
+            })
 
-        if (error) {
-          console.error("Błąd wymiany kodu na sesję:", error)
+            console.log("Set session result:", { sessionData, sessionError })
+
+            if (sessionError) {
+              throw sessionError
+            }
+
+            if (sessionData?.user?.email) {
+              setEmail(sessionData.user.email)
+              return
+            }
+          } catch (err) {
+            console.error("Błąd ustawiania sesji:", err)
+          }
+        }
+
+        // Jeśli nie udało się ustawić sesji, spróbuj inne metody
+        try {
+          // Spróbuj wymienić kod na sesję
+          const { data, error } = await supabase.auth.exchangeCodeForSession(token)
+          console.log("Exchange code result:", { data, error })
+
+          if (error) {
+            throw error
+          }
+
+          if (data?.user?.email) {
+            setEmail(data.user.email)
+            return
+          }
+        } catch (exchangeErr) {
+          console.error("Błąd wymiany kodu na sesję:", exchangeErr)
 
           // Spróbuj alternatywną metodę weryfikacji
           try {
@@ -92,24 +156,25 @@ export default function UpdatePasswordPage() {
 
             if (verifyData?.user?.email) {
               setEmail(verifyData.user.email)
+              return
             }
           } catch (verifyErr) {
             console.error("Błąd weryfikacji OTP:", verifyErr)
-            setTokenError("Token jest nieprawidłowy lub wygasł. Poproś o nowy link resetowania hasła.")
           }
-        } else if (data?.user?.email) {
-          setEmail(data.user.email)
-        } else {
-          setTokenError("Nie można pobrać adresu email. Spróbuj ponownie lub poproś o nowy link resetowania hasła.")
         }
+
+        // Jeśli dotarliśmy tutaj, nie udało się zweryfikować tokenu
+        setTokenError("Token jest nieprawidłowy lub wygasł. Poproś o nowy link resetowania hasła.")
       } catch (err) {
         console.error("Błąd podczas weryfikacji tokenu:", err)
         setTokenError("Wystąpił błąd podczas weryfikacji tokenu. Spróbuj ponownie później.")
       }
     }
 
-    verifyToken()
-  }, [token, type, searchParams, fullUrl, allParams])
+    if (token) {
+      verifyToken()
+    }
+  }, [token, type, searchParams, fullUrl, allParams, urlFragment, fragmentParams])
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
