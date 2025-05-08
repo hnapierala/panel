@@ -17,38 +17,100 @@ export default function InvitePage() {
   const [token, setToken] = useState<string | null>(null)
   const [tokenType, setTokenType] = useState<string | null>(null)
   const [showManualForm, setShowManualForm] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<string>("")
 
   const router = useRouter()
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    // Wyloguj użytkownika na początku, aby zapobiec automatycznemu zalogowaniu
+    // Funkcja do wylogowania użytkownika
     const logout = async () => {
-      await supabase.auth.signOut()
+      try {
+        await supabase.auth.signOut()
+        console.log("Wylogowano użytkownika")
+      } catch (error) {
+        console.error("Błąd podczas wylogowywania:", error)
+      }
     }
 
-    logout()
+    // Funkcja do pobierania informacji o tokenie
+    const getTokenInfo = async () => {
+      try {
+        setLoading(true)
 
-    // Pobierz token z URL
-    const tokenFromParams = searchParams.get("token")
-    const typeFromParams = searchParams.get("type")
+        // Najpierw wyloguj użytkownika, aby zapobiec automatycznemu zalogowaniu
+        await logout()
 
-    // Pobierz token z fragmentu URL (po #)
-    const hashParams = new URLSearchParams(window.location.hash.substring(1))
-    const accessToken = hashParams.get("access_token")
-    const typeFromHash = hashParams.get("type")
+        // Pobierz token z URL
+        const tokenFromParams = searchParams.get("token")
+        const typeFromParams = searchParams.get("type")
 
-    if (tokenFromParams) {
-      setToken(tokenFromParams)
-      setTokenType(typeFromParams)
-    } else if (accessToken) {
-      setToken(accessToken)
-      setTokenType(typeFromHash)
-    } else {
-      setError("Brak tokenu w URL. Sprawdź, czy używasz poprawnego linku z emaila.")
+        // Pobierz token z fragmentu URL (po #)
+        const hash = window.location.hash
+        const hashParams = new URLSearchParams(hash.substring(1))
+        const accessToken = hashParams.get("access_token")
+        const typeFromHash = hashParams.get("type")
+
+        // Zapisz informacje debugowania
+        setDebugInfo(`
+          URL: ${window.location.href}
+          Parametry: ${JSON.stringify(Object.fromEntries(searchParams.entries()))}
+          Fragment: ${hash}
+          Token z parametrów: ${tokenFromParams}
+          Typ z parametrów: ${typeFromParams}
+          Token z fragmentu: ${accessToken}
+          Typ z fragmentu: ${typeFromHash}
+        `)
+
+        // Ustaw token i typ
+        if (tokenFromParams) {
+          setToken(tokenFromParams)
+          setTokenType(typeFromParams || "invite")
+
+          // Spróbuj wyciągnąć email z tokenu
+          try {
+            // Jeśli to token JWT, spróbuj go zdekodować
+            const parts = tokenFromParams.split(".")
+            if (parts.length === 3) {
+              const payload = JSON.parse(atob(parts[1]))
+              if (payload.email) {
+                setEmail(payload.email)
+              }
+            }
+          } catch (e) {
+            console.error("Błąd dekodowania tokenu:", e)
+          }
+        } else if (accessToken) {
+          setToken(accessToken)
+          setTokenType(typeFromHash || "invite")
+
+          // Spróbuj wyciągnąć email z tokenu
+          try {
+            // Jeśli to token JWT, spróbuj go zdekodować
+            const parts = accessToken.split(".")
+            if (parts.length === 3) {
+              const payload = JSON.parse(atob(parts[1]))
+              if (payload.email) {
+                setEmail(payload.email)
+              }
+            }
+          } catch (e) {
+            console.error("Błąd dekodowania tokenu:", e)
+          }
+        } else {
+          setError("Brak tokenu w URL. Sprawdź, czy używasz poprawnego linku z emaila.")
+          setShowManualForm(true)
+        }
+      } catch (error) {
+        console.error("Błąd podczas pobierania informacji o tokenie:", error)
+        setError("Wystąpił błąd podczas przetwarzania tokenu zaproszenia.")
+        setShowManualForm(true)
+      } finally {
+        setLoading(false)
+      }
     }
 
-    setLoading(false)
+    getTokenInfo()
   }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -68,34 +130,63 @@ export default function InvitePage() {
     setError(null)
 
     try {
-      // Jeśli mamy token, próbujemy go użyć
+      // Jeśli mamy token, próbujemy go użyć do ustawienia hasła
       if (token) {
-        const { error } = await supabase.auth.updateUser({
-          password: password,
-        })
+        // Najpierw wyloguj użytkownika
+        await supabase.auth.signOut()
 
-        if (error) {
-          throw error
+        // Jeśli to token zaproszenia, użyj go do ustawienia hasła
+        if (tokenType === "invite") {
+          // Najpierw zweryfikuj token zaproszenia
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: token,
+            type: "invite",
+          })
+
+          if (verifyError) {
+            throw verifyError
+          }
+
+          // Teraz ustaw hasło
+          const { error } = await supabase.auth.updateUser({
+            password: password,
+          })
+
+          if (error) {
+            throw error
+          }
+
+          setSuccess("Hasło zostało pomyślnie ustawione. Przekierowywanie do dashboardu...")
+
+          // Przekieruj do dashboardu
+          setTimeout(() => {
+            router.push("/dashboard")
+          }, 2000)
+        } else {
+          // Jeśli to inny typ tokenu, spróbuj ustawić hasło bezpośrednio
+          const { error } = await supabase.auth.updateUser({
+            password: password,
+          })
+
+          if (error) {
+            throw error
+          }
+
+          setSuccess("Hasło zostało pomyślnie ustawione. Przekierowywanie do dashboardu...")
+
+          // Przekieruj do dashboardu
+          setTimeout(() => {
+            router.push("/dashboard")
+          }, 2000)
         }
-
-        setSuccess("Hasło zostało pomyślnie ustawione. Przekierowywanie do dashboardu...")
-
-        // Zaloguj użytkownika
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-
-        if (signInError) {
-          throw signInError
-        }
-
-        // Przekieruj do dashboardu
-        setTimeout(() => {
-          router.push("/dashboard")
-        }, 2000)
       } else {
         // Jeśli nie mamy tokenu, próbujemy zalogować użytkownika
+        if (!email) {
+          setError("Adres email jest wymagany")
+          setLoading(false)
+          return
+        }
+
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -122,6 +213,7 @@ export default function InvitePage() {
         }
       }
     } catch (error: any) {
+      console.error("Błąd podczas ustawiania hasła:", error)
       setError(error.message || "Wystąpił błąd podczas ustawiania hasła")
     } finally {
       setLoading(false)
@@ -162,19 +254,21 @@ export default function InvitePage() {
               <>
                 {token || showManualForm ? (
                   <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                      <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                        Adres email
-                      </label>
-                      <input
-                        type="email"
-                        id="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        required
-                      />
-                    </div>
+                    {(!email || showManualForm) && (
+                      <div>
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                          Adres email
+                        </label>
+                        <input
+                          type="email"
+                          id="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        />
+                      </div>
+                    )}
 
                     <div>
                       <label htmlFor="password" className="block text-sm font-medium text-gray-700">
@@ -233,6 +327,11 @@ export default function InvitePage() {
                 Wróć do logowania
               </Link>
             </div>
+
+            <details className="mt-4 text-xs text-gray-500">
+              <summary>Informacje debugowania (dla administratora)</summary>
+              <pre className="mt-2 whitespace-pre-wrap bg-gray-100 p-2 rounded text-xs">{debugInfo}</pre>
+            </details>
           </>
         )}
       </div>

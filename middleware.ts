@@ -16,18 +16,22 @@ export async function middleware(request: NextRequest) {
     search.includes("type=recovery") ||
     search.includes("type=invite") ||
     hash.includes("access_token=") ||
-    hash.includes("refresh_token=")
+    hash.includes("refresh_token=") ||
+    hash.includes("type=invite") ||
+    hash.includes("type=recovery")
 
   // Jeśli URL zawiera token uwierzytelniania, przekieruj do odpowiedniej strony
   if (hasAuthParam) {
-    // Jeśli URL zawiera token zaproszenia lub resetowania hasła, przekieruj do odpowiedniej strony
-    if (search.includes("type=invite") || hash.includes("type=invite")) {
+    // Jeśli URL zawiera token zaproszenia, zawsze przekieruj do strony zaproszenia
+    if (search.includes("type=invite") || hash.includes("type=invite") || pathname.includes("/auth/invite")) {
+      console.log("Middleware: Wykryto zaproszenie, przekierowuję do /zaproszenie")
       const url = new URL("/zaproszenie", request.url)
       url.search = search
       url.hash = hash
       return NextResponse.redirect(url)
     }
 
+    // Jeśli URL zawiera token resetowania hasła, przekieruj do strony aktualizacji hasła
     if (search.includes("type=recovery") || hash.includes("type=recovery")) {
       const url = new URL("/aktualizacja-hasla", request.url)
       url.search = search
