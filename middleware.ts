@@ -13,13 +13,26 @@ export async function middleware(req: NextRequest) {
   // Sprawdź, czy użytkownik jest zalogowany
   const isLoggedIn = !!session
 
+  // Sprawdź, czy URL zawiera token resetowania hasła lub zaproszenia
+  const url = req.nextUrl
+  const hasAuthToken =
+    url.searchParams.has("token") ||
+    url.searchParams.has("t") ||
+    url.searchParams.has("access_token") ||
+    url.searchParams.has("refresh_token")
+
   // Ścieżki, które nie wymagają uwierzytelnienia
-  const publicPaths = ["/logowanie", "/resetowanie-hasla", "/kontakt", "/zaproszenie"]
+  const publicPaths = ["/logowanie", "/resetowanie-hasla", "/kontakt", "/zaproszenie", "/aktualizacja-hasla"]
   const isPublicPath = publicPaths.some((path) => req.nextUrl.pathname.startsWith(path))
 
   // Ścieżki, które wymagają uwierzytelnienia
-  const protectedPaths = ["/dashboard", "/aktualizacja-hasla"]
+  const protectedPaths = ["/dashboard"]
   const isProtectedPath = protectedPaths.some((path) => req.nextUrl.pathname.startsWith(path))
+
+  // Jeśli URL zawiera token, zawsze pozwól na dostęp (nie przekierowuj)
+  if (hasAuthToken) {
+    return res
+  }
 
   // Przekieruj niezalogowanych użytkowników z chronionych ścieżek do logowania
   if (isProtectedPath && !isLoggedIn) {
@@ -27,8 +40,8 @@ export async function middleware(req: NextRequest) {
   }
 
   // Przekieruj zalogowanych użytkowników z publicznych ścieżek do dashboardu
-  // Wyjątek: nie przekierowuj z /zaproszenie, nawet jeśli użytkownik jest zalogowany
-  if (isPublicPath && isLoggedIn && !req.nextUrl.pathname.startsWith("/zaproszenie")) {
+  // Ale tylko jeśli nie ma tokenu w URL
+  if (isPublicPath && isLoggedIn && !hasAuthToken) {
     return NextResponse.redirect(new URL("/dashboard", req.url))
   }
 
