@@ -27,6 +27,14 @@ export function getSupabaseClient() {
       detectSessionInUrl: true,
       flowType: "pkce",
       storageKey: "supabase.auth.token",
+      debug: true, // Włącz debugowanie
+    },
+    global: {
+      fetch: (...args) => {
+        // Dodaj niestandardowy fetch dla lepszego debugowania
+        console.log("Supabase fetch request:", args[0])
+        return fetch(...args)
+      },
     },
   })
 
