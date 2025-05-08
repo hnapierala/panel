@@ -1,56 +1,61 @@
 import { createClient } from "@supabase/supabase-js"
-import type { Database } from "@/types/supabase"
 
-// Sprawdź, czy zmienne środowiskowe są dostępne
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Brak wymaganych zmiennych środowiskowych Supabase")
-}
-
-// Opcje klienta Supabase
-const supabaseOptions = {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true, // Włączamy wykrywanie sesji w URL
-    flowType: "implicit",
-  },
-}
-
-// Singleton dla klienta po stronie klienta
+// Supabase client for client-side usage
 let supabaseClient: ReturnType<typeof createClient> | null = null
 
-// Funkcja do tworzenia klienta Supabase po stronie klienta
 export const getSupabaseClient = () => {
+  if (supabaseClient) return supabaseClient
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Brak wymaganych zmiennych środowiskowych Supabase")
+    throw new Error("Missing Supabase environment variables")
   }
 
-  if (!supabaseClient) {
-    supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, supabaseOptions)
-  }
+  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false, // Disable automatic detection to handle it manually
+    },
+  })
 
   return supabaseClient
 }
 
-// Funkcja do tworzenia klienta Supabase po stronie serwera
-export const getSupabaseServerClient = () => {
+// Supabase client for server-side usage
+export const getSupabaseServer = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Brak wymaganych zmiennych środowiskowych Supabase")
+    throw new Error("Missing Supabase environment variables")
   }
 
-  // Zawsze tworzymy nowego klienta po stronie serwera
-  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    ...supabaseOptions,
+  return createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-      ...supabaseOptions.auth,
-      persistSession: false,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
     },
   })
 }
 
-// Domyślny klient Supabase
-const supabase = getSupabaseClient()
-export default supabase
+// Supabase admin client for server-side operations that require admin privileges
+export const getSupabaseAdmin = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error("Missing Supabase environment variables for admin operations")
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  })
+}

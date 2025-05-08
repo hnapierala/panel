@@ -4,101 +4,83 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import supabase from "@/lib/supabase-client"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle, CheckCircle2, Info } from "lucide-react"
 
 export default function InvitePage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [debugInfo, setDebugInfo] = useState<string>("")
-  const [showDebug, setShowDebug] = useState(false)
-
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [tokenVerified, setTokenVerified] = useState(false)
+  const [showDebug, setShowDebug] = useState(false)
+
+  // Get parameters from URL
+  const token = searchParams.get("token") || ""
+  const type = searchParams.get("type") || ""
+  const emailFromUrl = searchParams.get("email") || ""
+  const redirectTo = searchParams.get("redirect_to") || "/dashboard"
+
   useEffect(() => {
-    const initPage = async () => {
-      try {
-        setLoading(true)
-
-        // Pobierz parametry z URL
-        const token = searchParams.get("token") || ""
-        const type = searchParams.get("type") || "invite"
-        const emailFromParams = searchParams.get("email") || ""
-        const redirectTo = searchParams.get("redirect_to") || "/dashboard"
-
-        // Zapisz informacje debugowania
-        const fullUrl = window.location.href
-        const params = Object.fromEntries(searchParams.entries())
-        const hashParams = new URLSearchParams(window.location.hash.substring(1))
-
-        setDebugInfo(`
-          Pełny URL: ${fullUrl}
-          Parametry: ${JSON.stringify(params)}
-          Fragment: ${window.location.hash}
-          Parametry fragmentu: ${JSON.stringify(Object.fromEntries(hashParams.entries()))}
-          Token: ${token}
-          Typ: ${type}
-          Email: ${emailFromParams}
-          Przekierowanie: ${redirectTo}
-        `)
-
-        // Ustaw email z parametrów
-        if (emailFromParams) {
-          setEmail(emailFromParams)
-        }
-
-        // Jeśli nie ma tokenu, pokaż błąd
-        if (!token) {
-          setError("Brak tokenu zaproszenia. Sprawdź, czy używasz poprawnego linku z emaila.")
-          setLoading(false)
-          return
-        }
-
-        // Wyloguj użytkownika, aby zapobiec problemom z sesją
-        await supabase.auth.signOut()
-
-        // Zweryfikuj token zaproszenia
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
-          token_hash: token,
-          type: type as any,
-        })
-
-        if (verifyError) {
-          console.error("Błąd weryfikacji tokenu:", verifyError)
-          setError(`Błąd weryfikacji tokenu: ${verifyError.message}`)
-          setLoading(false)
-          return
-        }
-
-        // Jeśli weryfikacja się powiodła, ale nie mamy emaila, spróbuj go pobrać z danych użytkownika
-        if (!emailFromParams && data?.user?.email) {
-          setEmail(data.user.email)
-        }
-      } catch (error: any) {
-        console.error("Błąd inicjalizacji strony:", error)
-        setError(`Wystąpił błąd: ${error.message}`)
-      } finally {
-        setLoading(false)
-      }
+    // Set email from URL parameter
+    if (emailFromUrl) {
+      setEmail(emailFromUrl)
     }
 
-    initPage()
-  }, [searchParams])
+    // Verify token
+    if (token && type === "invite") {
+      verifyToken()
+    }
+  }, [token, type, emailFromUrl])
+
+  const verifyToken = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await fetch("/api/verify-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token, type }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Błąd weryfikacji tokenu")
+      }
+
+      setTokenVerified(true)
+      setSuccess("Token zweryfikowany pomyślnie")
+    } catch (error) {
+      console.error("Error verifying token:", error)
+      setError(error instanceof Error ? error.message : "Błąd weryfikacji tokenu")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Validate form
     if (!email) {
       setError("Adres email jest wymagany")
       return
     }
 
-    if (password !== confirmPassword) {
-      setError("Hasła nie są zgodne")
+    if (!password) {
+      setError("Hasło jest wymagane")
       return
     }
 
@@ -107,150 +89,147 @@ export default function InvitePage() {
       return
     }
 
-    setLoading(true)
-    setError(null)
+    if (password !== confirmPassword) {
+      setError("Hasła nie są zgodne")
+      return
+    }
 
     try {
-      // Pobierz token z parametrów
-      const token = searchParams.get("token") || ""
-      const redirectTo = searchParams.get("redirect_to") || "/dashboard"
+      setLoading(true)
+      setError(null)
 
-      // Najpierw wyloguj użytkownika
-      await supabase.auth.signOut()
+      const response = await fetch("/api/set-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password, token, type }),
+      })
 
-      if (token) {
-        // Zweryfikuj token zaproszenia
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          token_hash: token,
-          type: "invite",
-        })
+      const data = await response.json()
 
-        if (verifyError) {
-          throw verifyError
-        }
-
-        // Ustaw hasło
-        const { error: updateError } = await supabase.auth.updateUser({
-          password: password,
-        })
-
-        if (updateError) {
-          throw updateError
-        }
-
-        setSuccess("Hasło zostało pomyślnie ustawione. Logowanie...")
-
-        // Zaloguj użytkownika
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-
-        if (signInError) {
-          throw signInError
-        }
-
-        // Przekieruj do dashboardu
-        setTimeout(() => {
-          window.location.href = redirectTo
-        }, 2000)
-      } else {
-        throw new Error("Brak tokenu zaproszenia")
+      if (!response.ok) {
+        throw new Error(data.error || "Błąd ustawiania hasła")
       }
-    } catch (error: any) {
-      console.error("Błąd ustawiania hasła:", error)
-      setError(`Błąd: ${error.message}`)
+
+      setSuccess("Hasło zostało ustawione pomyślnie. Przekierowywanie...")
+
+      // Redirect after a short delay
+      setTimeout(() => {
+        router.push(redirectTo || "/dashboard")
+      }, 1500)
+    } catch (error) {
+      console.error("Error setting password:", error)
+      setError(error instanceof Error ? error.message : "Błąd ustawiania hasła")
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-6 text-center">OZE System</h1>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+      <div className="w-full max-w-md space-y-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold">OZE System</h1>
+          {type === "invite" ? (
+            <p className="mt-2 text-gray-600">Ustaw hasło, aby aktywować swoje konto</p>
+          ) : (
+            <p className="mt-2 text-gray-600">Ustaw nowe hasło</p>
+          )}
+        </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 relative" role="alert">
-            <span className="block sm:inline">{error}</span>
-          </div>
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Błąd</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {success && (
-          <div
-            className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4 relative"
-            role="alert"
+          <Alert variant="default" className="border-green-500 bg-green-50">
+            <CheckCircle2 className="h-4 w-4 text-green-500" />
+            <AlertTitle className="text-green-700">Sukces</AlertTitle>
+            <AlertDescription className="text-green-600">{success}</AlertDescription>
+          </Alert>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <Label htmlFor="email">Adres email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="twoj@email.com"
+              disabled={!!emailFromUrl}
+              className="mt-1"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="password">Nowe hasło</Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="mt-1"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="confirmPassword">Potwierdź hasło</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              className="mt-1"
+            />
+          </div>
+
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Przetwarzanie..." : "Ustaw hasło i zaloguj się"}
+          </Button>
+        </form>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowDebug(!showDebug)}
+            className="flex items-center text-sm text-gray-500 hover:text-gray-700"
           >
-            <span className="block sm:inline">{success}</span>
-          </div>
-        )}
+            <Info className="mr-1 h-4 w-4" />
+            Informacje debugowania (dla administratora)
+          </button>
 
-        {loading ? (
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-            <p className="mt-4">Inicjalizacja...</p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Adres email
-              </label>
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-                readOnly={!!email}
-              />
+          {showDebug && (
+            <div className="mt-2 rounded border border-gray-200 bg-gray-50 p-4 text-xs">
+              <p>
+                <strong>Pełny URL:</strong> {window.location.href}
+              </p>
+              <p>
+                <strong>Parametry:</strong>{" "}
+                {JSON.stringify({
+                  token,
+                  type,
+                  email: emailFromUrl,
+                  redirect_to: redirectTo,
+                })}
+              </p>
+              <p>
+                <strong>Fragment:</strong> {window.location.hash}
+              </p>
+              <p>
+                <strong>Token zweryfikowany:</strong> {tokenVerified ? "Tak" : "Nie"}
+              </p>
             </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Nowe hasło
-              </label>
-              <input
-                type="password"
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-                minLength={8}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Potwierdź hasło
-              </label>
-              <input
-                type="password"
-                id="confirmPassword"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-                minLength={8}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              Ustaw hasło i zaloguj się
-            </button>
-          </form>
-        )}
-
-        <details className="mt-4 text-xs text-gray-500">
-          <summary onClick={() => setShowDebug(!showDebug)}>Informacje debugowania (dla administratora)</summary>
-          {showDebug && <pre className="mt-2 whitespace-pre-wrap bg-gray-100 p-2 rounded text-xs">{debugInfo}</pre>}
-        </details>
+          )}
+        </div>
       </div>
     </div>
   )
