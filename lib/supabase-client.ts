@@ -14,7 +14,7 @@ const supabaseOptions = {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false, // Wyłączamy automatyczne wykrywanie sesji w URL
+    detectSessionInUrl: true, // Włączamy wykrywanie sesji w URL
     flowType: "implicit",
   },
 }
