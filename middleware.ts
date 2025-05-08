@@ -14,7 +14,7 @@ export async function middleware(req: NextRequest) {
   const isLoggedIn = !!session
 
   // Ścieżki, które nie wymagają uwierzytelnienia
-  const publicPaths = ["/logowanie", "/resetowanie-hasla", "/kontakt"]
+  const publicPaths = ["/logowanie", "/resetowanie-hasla", "/kontakt", "/zaproszenie"]
   const isPublicPath = publicPaths.some((path) => req.nextUrl.pathname.startsWith(path))
 
   // Ścieżki, które wymagają uwierzytelnienia
@@ -27,7 +27,8 @@ export async function middleware(req: NextRequest) {
   }
 
   // Przekieruj zalogowanych użytkowników z publicznych ścieżek do dashboardu
-  if (isPublicPath && isLoggedIn) {
+  // Wyjątek: nie przekierowuj z /zaproszenie, nawet jeśli użytkownik jest zalogowany
+  if (isPublicPath && isLoggedIn && !req.nextUrl.pathname.startsWith("/zaproszenie")) {
     return NextResponse.redirect(new URL("/dashboard", req.url))
   }
 
@@ -35,5 +36,13 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*", "/logowanie", "/resetowanie-hasla", "/aktualizacja-hasla", "/kontakt"],
+  matcher: [
+    "/",
+    "/dashboard/:path*",
+    "/logowanie",
+    "/resetowanie-hasla",
+    "/aktualizacja-hasla",
+    "/kontakt",
+    "/zaproszenie",
+  ],
 }
