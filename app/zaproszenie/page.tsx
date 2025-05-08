@@ -14,27 +14,18 @@ export default function InvitePage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState<string>("")
   const [showDebug, setShowDebug] = useState(false)
-  const [tokenVerified, setTokenVerified] = useState(false)
 
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const token = searchParams.get("token") || ""
-  const type = searchParams.get("type") || ""
-  const emailFromParams = searchParams.get("email") || ""
-  const redirectTo = searchParams.get("redirect_to") || "/dashboard"
-
   useEffect(() => {
     const initPage = async () => {
       try {
-        setLoading(true)
-        setError(null)
-
         // Pobierz parametry z URL
-        // const token = searchParams.get("token") || ""
-        // const type = searchParams.get("type") || ""
-        // const emailFromParams = searchParams.get("email") || ""
-        // const redirectTo = searchParams.get("redirect_to") || "/dashboard"
+        const token = searchParams.get("token") || ""
+        const type = searchParams.get("type") || ""
+        const emailFromParams = searchParams.get("email") || ""
+        const redirectTo = searchParams.get("redirect_to") || "/dashboard"
 
         // Zapisz informacje debugowania
         const fullUrl = window.location.href
@@ -56,72 +47,14 @@ export default function InvitePage() {
         if (emailFromParams) {
           setEmail(emailFromParams)
         }
-
-        // Jeśli nie ma tokenu lub emaila, pokaż błąd
-        if (!token) {
-          setError("Brak tokenu zaproszenia. Sprawdź, czy używasz poprawnego linku z emaila.")
-          setLoading(false)
-          return
-        }
-
-        if (!emailFromParams) {
-          setError("Brak adresu email w parametrach. Wprowadź swój adres email ręcznie.")
-          setLoading(false)
-          return
-        }
-
-        // Wszystko OK, możemy kontynuować
-        // setTokenVerified(true)
-        await verifyToken()
-        setLoading(false)
       } catch (error: any) {
         console.error("Błąd inicjalizacji strony:", error)
         setError(`Wystąpił błąd: ${error.message}`)
-      } finally {
-        setLoading(false)
       }
     }
 
     initPage()
   }, [searchParams])
-
-  const verifyToken = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      const response = await fetch("/api/verify-token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ token, type }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.text()
-        let errorMessage = "Błąd weryfikacji tokenu"
-
-        try {
-          const errorJson = JSON.parse(errorData)
-          errorMessage = errorJson.error || errorMessage
-        } catch (e) {
-          console.error("Error parsing error response:", e, errorData)
-        }
-
-        throw new Error(errorMessage)
-      }
-
-      const data = await response.json()
-      setTokenVerified(true)
-      setSuccess("Token zweryfikowany pomyślnie")
-    } catch (error) {
-      console.error("Error verifying token:", error)
-      setError(error instanceof Error ? error.message : "Błąd weryfikacji tokenu")
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -151,6 +84,11 @@ export default function InvitePage() {
       setLoading(true)
       setError(null)
 
+      const token = searchParams.get("token") || ""
+      const type = searchParams.get("type") || ""
+
+      console.log("Wysyłanie żądania ustawienia hasła:", { email, token, type })
+
       const response = await fetch("/api/set-password", {
         method: "POST",
         headers: {
@@ -159,26 +97,26 @@ export default function InvitePage() {
         body: JSON.stringify({ email, password, token, type }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.text()
-        let errorMessage = "Błąd ustawiania hasła"
+      let data
+      try {
+        const responseText = await response.text()
+        console.log("Odpowiedź z API:", responseText)
 
-        try {
-          const errorJson = JSON.parse(errorData)
-          errorMessage = errorJson.error || errorMessage
-        } catch (e) {
-          console.error("Error parsing error response:", e, errorData)
-        }
-
-        throw new Error(errorMessage)
+        data = JSON.parse(responseText)
+      } catch (e) {
+        console.error("Błąd parsowania odpowiedzi JSON:", e)
+        throw new Error("Nieprawidłowa odpowiedź z serwera")
       }
 
-      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || "Błąd ustawiania hasła")
+      }
+
       setSuccess("Hasło zostało ustawione pomyślnie. Przekierowywanie...")
 
       // Redirect after a short delay
       setTimeout(() => {
-        router.push(redirectTo || "/dashboard")
+        window.location.href = "/logowanie"
       }, 1500)
     } catch (error) {
       console.error("Error setting password:", error)
@@ -192,6 +130,7 @@ export default function InvitePage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <h1 className="text-2xl font-bold mb-6 text-center">OZE System</h1>
+        <p className="text-center mb-6">Ustaw hasło, aby aktywować swoje konto</p>
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 relative" role="alert">
@@ -211,7 +150,7 @@ export default function InvitePage() {
         {loading ? (
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-            <p className="mt-4">Inicjalizacja...</p>
+            <p className="mt-4">Przetwarzanie...</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -262,7 +201,7 @@ export default function InvitePage() {
 
             <button
               type="submit"
-              disabled={loading || !tokenVerified}
+              disabled={loading}
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
               Ustaw hasło i zaloguj się
@@ -271,7 +210,7 @@ export default function InvitePage() {
         )}
 
         <details className="mt-4 text-xs text-gray-500">
-          <summary onClick={() => setShowDebug(!showDebug)}>Informacje debugowania (dla administratora)</summary>
+          <summary>Informacje debugowania (dla administratora)</summary>
           {showDebug && <pre className="mt-2 whitespace-pre-wrap bg-gray-100 p-2 rounded text-xs">{debugInfo}</pre>}
         </details>
       </div>
