@@ -4,7 +4,6 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { createClient } from "@supabase/supabase-js"
 
 export default function InvitePage() {
   const [email, setEmail] = useState("")
@@ -15,20 +14,27 @@ export default function InvitePage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState<string>("")
   const [showDebug, setShowDebug] = useState(false)
+  const [tokenVerified, setTokenVerified] = useState(false)
 
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  const token = searchParams.get("token") || ""
+  const type = searchParams.get("type") || ""
+  const emailFromParams = searchParams.get("email") || ""
+  const redirectTo = searchParams.get("redirect_to") || "/dashboard"
 
   useEffect(() => {
     const initPage = async () => {
       try {
         setLoading(true)
+        setError(null)
 
         // Pobierz parametry z URL
-        const token = searchParams.get("token") || ""
-        const type = searchParams.get("type") || ""
-        const emailFromParams = searchParams.get("email") || ""
-        const redirectTo = searchParams.get("redirect_to") || "/dashboard"
+        // const token = searchParams.get("token") || ""
+        // const type = searchParams.get("type") || ""
+        // const emailFromParams = searchParams.get("email") || ""
+        // const redirectTo = searchParams.get("redirect_to") || "/dashboard"
 
         // Zapisz informacje debugowania
         const fullUrl = window.location.href
@@ -65,6 +71,8 @@ export default function InvitePage() {
         }
 
         // Wszystko OK, możemy kontynuować
+        // setTokenVerified(true)
+        await verifyToken()
         setLoading(false)
       } catch (error: any) {
         console.error("Błąd inicjalizacji strony:", error)
@@ -77,16 +85,55 @@ export default function InvitePage() {
     initPage()
   }, [searchParams])
 
+  const verifyToken = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await fetch("/api/verify-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token, type }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.text()
+        let errorMessage = "Błąd weryfikacji tokenu"
+
+        try {
+          const errorJson = JSON.parse(errorData)
+          errorMessage = errorJson.error || errorMessage
+        } catch (e) {
+          console.error("Error parsing error response:", e, errorData)
+        }
+
+        throw new Error(errorMessage)
+      }
+
+      const data = await response.json()
+      setTokenVerified(true)
+      setSuccess("Token zweryfikowany pomyślnie")
+    } catch (error) {
+      console.error("Error verifying token:", error)
+      setError(error instanceof Error ? error.message : "Błąd weryfikacji tokenu")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Validate form
     if (!email) {
       setError("Adres email jest wymagany")
       return
     }
 
-    if (password !== confirmPassword) {
-      setError("Hasła nie są zgodne")
+    if (!password) {
+      setError("Hasło jest wymagane")
       return
     }
 
@@ -95,68 +142,47 @@ export default function InvitePage() {
       return
     }
 
-    setLoading(true)
-    setError(null)
+    if (password !== confirmPassword) {
+      setError("Hasła nie są zgodne")
+      return
+    }
 
     try {
-      // Pobierz parametry z URL
-      const token = searchParams.get("token") || ""
-      const redirectTo = searchParams.get("redirect_to") || "/dashboard"
-      const emailFromParams = searchParams.get("email") || ""
+      setLoading(true)
+      setError(null)
 
-      // Utwórz nowego klienta Supabase dla tego żądania
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false,
-          },
-        },
-      )
-
-      // Najpierw wyloguj użytkownika
-      await supabase.auth.signOut()
-
-      // Użyj API Supabase do ustawienia hasła
       const response = await fetch("/api/set-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          email,
-          password,
-          token,
-        }),
+        body: JSON.stringify({ email, password, token, type }),
       })
-
-      const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || "Wystąpił błąd podczas ustawiania hasła")
+        const errorData = await response.text()
+        let errorMessage = "Błąd ustawiania hasła"
+
+        try {
+          const errorJson = JSON.parse(errorData)
+          errorMessage = errorJson.error || errorMessage
+        } catch (e) {
+          console.error("Error parsing error response:", e, errorData)
+        }
+
+        throw new Error(errorMessage)
       }
 
+      const data = await response.json()
       setSuccess("Hasło zostało ustawione pomyślnie. Przekierowywanie...")
 
-      // Zaloguj użytkownika
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (signInError) {
-        throw signInError
-      }
-
-      // Przekieruj do dashboardu
+      // Redirect after a short delay
       setTimeout(() => {
-        window.location.href = redirectTo
-      }, 2000)
-    } catch (error: any) {
-      console.error("Błąd podczas ustawiania hasła:", error)
-      setError(`Błąd: ${error.message}`)
+        router.push(redirectTo || "/dashboard")
+      }, 1500)
+    } catch (error) {
+      console.error("Error setting password:", error)
+      setError(error instanceof Error ? error.message : "Błąd ustawiania hasła")
     } finally {
       setLoading(false)
     }
@@ -236,7 +262,7 @@ export default function InvitePage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !tokenVerified}
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
               Ustaw hasło i zaloguj się

@@ -19,15 +19,26 @@ export async function POST(request: NextRequest) {
 
     const supabaseAdmin = getSupabaseAdmin()
 
-    // Ustaw hasło użytkownika
-    const { data, error } = await supabaseAdmin.auth.admin.updateUserById(
-      email, // Użyj adresu email jako ID użytkownika
-      { password: password },
-    )
+    // Znajdź użytkownika po adresie email
+    const { data: users, error: usersError } = await supabaseAdmin.auth.admin.listUsers()
 
-    if (error) {
-      console.error("Error setting password:", error)
-      return NextResponse.json({ error: "Wystąpił błąd podczas ustawiania hasła" }, { status: 500 })
+    if (usersError) {
+      console.error("Error listing users:", usersError)
+      return NextResponse.json({ error: "Błąd podczas pobierania listy użytkowników" }, { status: 500 })
+    }
+
+    const user = users.users.find((u) => u.email === email)
+
+    if (!user) {
+      return NextResponse.json({ error: "Nie znaleziono użytkownika o podanym adresie email" }, { status: 404 })
+    }
+
+    // Zaktualizuj hasło użytkownika
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, { password })
+
+    if (updateError) {
+      console.error("Error updating user password:", updateError)
+      return NextResponse.json({ error: "Błąd podczas aktualizacji hasła: " + updateError.message }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, message: "Hasło zostało ustawione pomyślnie" })
