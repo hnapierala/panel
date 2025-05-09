@@ -9,7 +9,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { getSupabaseClient } from "@/lib/supabase-client"
 
@@ -98,73 +97,100 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <Card>
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">OZE System</CardTitle>
-            <CardDescription className="text-center">Zaloguj się na swoje konto</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {error && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Błąd</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="email">Adres email</Label>
-                <Input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="password">Hasło</Label>
-                <Input
-                  type="password"
-                  id="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1"
-                  required
-                />
-              </div>
-              <div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Logowanie..." : "Zaloguj się"}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-          <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p className="text-sm text-gray-500">
-              Nie masz konta?{" "}
-              <a href="mailto:kontakt@oze-system.tech" className="text-blue-500 hover:underline">
-                Skontaktuj się z nami
-              </a>
-            </p>
-            <Link href="/resetowanie-hasla" className="text-sm text-blue-500 hover:underline">
-              Zapomniałeś hasła?
-            </Link>
-          </CardFooter>
-        </Card>
+    <div className="min-h-screen flex bg-white">
+      {/* Lewa kolumna - formularz logowania */}
+      <div className="w-full lg:w-1/2 p-8 md:p-12 lg:p-16 flex flex-col justify-center">
+        <div className="max-w-md mx-auto w-full">
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">Platforma OZE System</h1>
 
-        {/* Informacje debugowania - widoczne tylko w trybie deweloperskim */}
-        {process.env.NODE_ENV === "development" && debugInfo && (
-          <div className="mt-4 p-2 bg-gray-100 rounded text-xs">
-            <details>
-              <summary>Informacje debugowania</summary>
-              <pre className="whitespace-pre-wrap">{debugInfo}</pre>
-            </details>
+          <h2 className="text-xl font-medium text-gray-700 mb-6">Zaloguj się:</h2>
+
+          {error && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Błąd</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <Label htmlFor="email" className="text-gray-700">
+                Adres e-mail
+              </Label>
+              <Input
+                type="email"
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 h-12 text-base"
+                required
+              />
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center">
+                <Label htmlFor="password" className="text-gray-700">
+                  Hasło
+                </Label>
+                <Link href="/resetowanie-hasla" className="text-sm text-blue-600 hover:underline">
+                  Nie pamiętasz hasła?
+                </Link>
+              </div>
+              <Input
+                type="password"
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1 h-12 text-base"
+                required
+              />
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full h-12 text-base bg-amber-400 hover:bg-amber-500 text-black"
+              disabled={loading}
+            >
+              {loading ? "Logowanie..." : "Zaloguj się"}
+            </Button>
+          </form>
+
+          {/* Informacje debugowania - widoczne tylko w trybie deweloperskim */}
+          {process.env.NODE_ENV === "development" && debugInfo && (
+            <div className="mt-4 p-2 bg-gray-100 rounded text-xs">
+              <details>
+                <summary>Informacje debugowania</summary>
+                <pre className="whitespace-pre-wrap">{debugInfo}</pre>
+              </details>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Prawa kolumna - informacje o systemie */}
+      <div className="hidden lg:block w-1/2 bg-gray-50 p-16 border-l">
+        <div className="max-w-lg mx-auto">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Czym jest OZE System?</h2>
+
+          <div className="prose text-gray-600">
+            <p className="mb-4">
+              OZE System jest aplikacją webową, służącą do przygotowywania kompletnych wycen dla Twojego klienta. Składa
+              się z formularza z danymi rejestracyjnymi Twojego Klienta, danymi dotyczącymi zużycia energii
+              elektrycznej, komponentami elektrowni słonecznej oraz proponowanymi formami sfinansowania jej zakupu.
+            </p>
+
+            <p className="mb-4">
+              Gdy wpiszesz wymagane informacje, nasz kalkulator wygeneruje ofertę w formie PDF lub w formie linku do
+              udostępnienia w formacie html.
+            </p>
+
+            <p>
+              Ponadto OZE System posiada pełną bazę niezbędnych materiałów marketingowych i sprzedażowych niezbędnych w
+              Twojej pracy.
+            </p>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )
