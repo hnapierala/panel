@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { getSupabaseClient } from "@/lib/supabase-client"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -24,8 +24,8 @@ export default function LoginPage() {
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get("redirect") || "/dashboard"
 
-  // Utwórz klienta Supabase dla komponentu
-  const supabase = createClientComponentClient()
+  // Użyj singletona klienta Supabase
+  const supabase = getSupabaseClient()
 
   useEffect(() => {
     // Sprawdź, czy użytkownik jest już zalogowany
@@ -40,7 +40,7 @@ export default function LoginPage() {
 
         if (data.session) {
           console.log("Użytkownik jest już zalogowany, przekierowywanie do:", redirectTo)
-          router.push(redirectTo)
+          window.location.href = redirectTo // Użyj bezpośredniego przekierowania zamiast router.push
         }
       } catch (error) {
         console.error("Błąd podczas sprawdzania sesji:", error)
@@ -48,7 +48,7 @@ export default function LoginPage() {
     }
 
     checkSession()
-  }, [router, redirectTo, supabase.auth])
+  }, [redirectTo, supabase.auth])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,8 +81,8 @@ export default function LoginPage() {
 
       console.log("Logowanie udane, przekierowywanie do:", redirectTo)
 
-      // Przekieruj do dashboardu po zalogowaniu
-      router.push(redirectTo)
+      // Użyj bezpośredniego przekierowania zamiast router.push
+      window.location.href = redirectTo
     } catch (error: any) {
       console.error("Błąd podczas logowania:", error)
       setError(error.message || "Wystąpił błąd podczas logowania")
