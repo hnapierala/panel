@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { createClient } from "@supabase/supabase-js"
 
 export async function middleware(request: NextRequest) {
-  const { pathname, search } = request.nextUrl
+  const { pathname } = request.nextUrl
 
   // Lista ścieżek publicznych, które nie wymagają uwierzytelnienia
   const publicPaths = ["/logowanie", "/resetowanie-hasla", "/aktualizacja-hasla", "/zaproszenie", "/kontakt"]
@@ -16,19 +17,39 @@ export async function middleware(request: NextRequest) {
   }
 
   // Sprawdź, czy użytkownik jest zalogowany
-  const token = request.cookies.get("sb-access-token")
-  const isLoggedIn = !!token
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("Brak zmiennych środowiskowych Supabase")
+    return NextResponse.redirect(new URL("/logowanie", request.url))
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: true,
+    },
+  })
+
+  const { data } = await supabase.auth.getSession()
+  const isLoggedIn = !!data.session
 
   // Jeśli użytkownik nie jest zalogowany, przekieruj go do strony logowania
-  if (!isLoggedIn) {
-    const url = new URL("/logowanie", request.url)
-    url.searchParams.set("redirect", pathname)
-    return NextResponse.redirect(url)
+  if (!isLoggedIn && pathname !== "/") {
+    console.log("Użytkownik niezalogowany, przekierowanie do logowania")
+    return NextResponse.redirect(new URL("/logowanie", request.url))
+  }
+
+  // Jeśli użytkownik nie jest zalogowany i próbuje dostać się do strony głównej, przekieruj go do logowania
+  if (!isLoggedIn && pathname === "/") {
+    console.log("Użytkownik niezalogowany na stronie głównej, przekierowanie do logowania")
+    return NextResponse.redirect(new URL("/logowanie", request.url))
   }
 
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.png$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)"],
 }
