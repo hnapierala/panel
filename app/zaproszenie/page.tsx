@@ -89,7 +89,8 @@ export default function InvitePage() {
 
       console.log("Wysyłanie żądania ustawienia hasła:", { email, token, type })
 
-      const response = await fetch("/api/set-password", {
+      // 1. Ustaw hasło
+      const passwordResponse = await fetch("/api/set-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -97,19 +98,44 @@ export default function InvitePage() {
         body: JSON.stringify({ email, password, token, type }),
       })
 
-      let data
+      let passwordData
       try {
-        const responseText = await response.text()
-        console.log("Odpowiedź z API:", responseText)
+        const responseText = await passwordResponse.text()
+        console.log("Odpowiedź z API set-password:", responseText)
 
-        data = JSON.parse(responseText)
+        passwordData = JSON.parse(responseText)
       } catch (e) {
         console.error("Błąd parsowania odpowiedzi JSON:", e)
         throw new Error("Nieprawidłowa odpowiedź z serwera")
       }
 
-      if (!response.ok) {
-        throw new Error(data.error || "Błąd ustawiania hasła")
+      if (!passwordResponse.ok) {
+        throw new Error(passwordData.error || "Błąd ustawiania hasła")
+      }
+
+      // 2. Potwierdź email
+      const confirmResponse = await fetch("/api/confirm-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      let confirmData
+      try {
+        const confirmText = await confirmResponse.text()
+        console.log("Odpowiedź z API confirm-email:", confirmText)
+
+        confirmData = JSON.parse(confirmText)
+      } catch (e) {
+        console.error("Błąd parsowania odpowiedzi JSON:", e)
+        // Nie przerywamy procesu, jeśli potwierdzenie emaila się nie powiedzie
+      }
+
+      if (!confirmResponse.ok) {
+        console.error("Błąd potwierdzania emaila:", confirmData?.error)
+        // Nie przerywamy procesu, jeśli potwierdzenie emaila się nie powiedzie
       }
 
       setSuccess("Hasło zostało ustawione pomyślnie. Przekierowywanie...")

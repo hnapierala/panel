@@ -28,13 +28,22 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email,
         password: password,
       })
 
       if (error) {
-        throw error
+        // Tłumaczenie typowych błędów Supabase na język polski
+        if (error.message === "Email not confirmed") {
+          throw new Error(
+            "Email nie został potwierdzony. Sprawdź swoją skrzynkę email lub skontaktuj się z administratorem.",
+          )
+        } else if (error.message === "Invalid login credentials") {
+          throw new Error("Nieprawidłowy email lub hasło.")
+        } else {
+          throw error
+        }
       }
 
       // Przekieruj do dashboardu po zalogowaniu
