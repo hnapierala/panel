@@ -49,14 +49,25 @@ export async function POST(request: NextRequest) {
 
     console.log("Znaleziono użytkownika:", user.id)
 
-    // Oznacz email jako potwierdzony
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-      email_confirm: true,
-    })
+    // Wywołaj naszą nową funkcję SQL do potwierdzenia emaila
+    const { error: rpcError } = await supabaseAdmin.rpc("confirm_user_email", { user_id: user.id })
 
-    if (updateError) {
-      console.error("Error confirming email:", updateError)
-      return NextResponse.json({ error: "Błąd podczas potwierdzania emaila: " + updateError.message }, { status: 500 })
+    if (rpcError) {
+      console.error("Error confirming email with RPC:", rpcError)
+
+      // Spróbuj alternatywnej metody
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+        email_confirm: true,
+        user_metadata: { email_confirmed: true },
+      })
+
+      if (updateError) {
+        console.error("Error confirming email with updateUserById:", updateError)
+        return NextResponse.json(
+          { error: "Błąd podczas potwierdzania emaila: " + updateError.message },
+          { status: 500 },
+        )
+      }
     }
 
     console.log("Email został pomyślnie potwierdzony dla użytkownika:", user.id)
