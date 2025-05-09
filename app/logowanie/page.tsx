@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { createClient } from "@supabase/supabase-js"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -21,31 +21,34 @@ export default function LoginPage() {
   const [debugInfo, setDebugInfo] = useState<string>("")
 
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get("redirect") || "/dashboard"
 
-  // Utwórz klienta Supabase dla tego komponentu
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-    {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-      },
-    },
-  )
+  // Utwórz klienta Supabase dla komponentu
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
     // Sprawdź, czy użytkownik jest już zalogowany
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession()
-      if (data.session) {
-        // Użytkownik jest zalogowany, przekieruj do dashboardu
-        router.push("/dashboard")
+      try {
+        const { data, error } = await supabase.auth.getSession()
+
+        if (error) {
+          console.error("Błąd podczas pobierania sesji:", error)
+          return
+        }
+
+        if (data.session) {
+          console.log("Użytkownik jest już zalogowany, przekierowywanie do:", redirectTo)
+          router.push(redirectTo)
+        }
+      } catch (error) {
+        console.error("Błąd podczas sprawdzania sesji:", error)
       }
     }
 
     checkSession()
-  }, [router, supabase.auth])
+  }, [router, redirectTo, supabase.auth])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,10 +79,10 @@ export default function LoginPage() {
         }
       }
 
-      console.log("Logowanie udane, przekierowywanie do dashboardu")
+      console.log("Logowanie udane, przekierowywanie do:", redirectTo)
 
       // Przekieruj do dashboardu po zalogowaniu
-      router.push("/dashboard")
+      router.push(redirectTo)
     } catch (error: any) {
       console.error("Błąd podczas logowania:", error)
       setError(error.message || "Wystąpił błąd podczas logowania")

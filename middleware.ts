@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -16,38 +16,28 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Sprawdź, czy użytkownik jest zalogowany
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  // Utwórz klienta Supabase dla middleware
+  const res = NextResponse.next()
+  const supabase = createMiddlewareClient({ req: request, res })
 
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("Brak zmiennych środowiskowych Supabase")
-    return NextResponse.redirect(new URL("/logowanie", request.url))
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: true,
-    },
-  })
-
-  const { data } = await supabase.auth.getSession()
-  const isLoggedIn = !!data.session
+  // Pobierz sesję
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
 
   // Jeśli użytkownik nie jest zalogowany, przekieruj go do strony logowania
-  if (!isLoggedIn && pathname !== "/") {
-    console.log("Użytkownik niezalogowany, przekierowanie do logowania")
-    return NextResponse.redirect(new URL("/logowanie", request.url))
+  if (!session && pathname !== "/") {
+    const url = new URL("/logowanie", request.url)
+    url.searchParams.set("redirect", pathname)
+    return NextResponse.redirect(url)
   }
 
   // Jeśli użytkownik nie jest zalogowany i próbuje dostać się do strony głównej, przekieruj go do logowania
-  if (!isLoggedIn && pathname === "/") {
-    console.log("Użytkownik niezalogowany na stronie głównej, przekierowanie do logowania")
+  if (!session && pathname === "/") {
     return NextResponse.redirect(new URL("/logowanie", request.url))
   }
 
-  return NextResponse.next()
+  return res
 }
 
 export const config = {
