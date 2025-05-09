@@ -106,26 +106,28 @@ export default function ResetPasswordPage() {
       </div>
 
       {/* Prawa kolumna - informacje o systemie */}
-      <div className="hidden lg:block w-1/2 bg-gray-50 p-16 border-l">
-        <div className="max-w-lg mx-auto">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Czym jest OZE System?</h2>
+      <div className="hidden lg:block w-1/2 border-l">
+        <div className="h-full flex flex-col justify-center px-16">
+          <div className="max-w-md">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Czym jest OZE System?</h2>
 
-          <div className="prose text-gray-600">
-            <p className="mb-4">
-              OZE System jest aplikacją webową, służącą do przygotowywania kompletnych wycen dla Twojego klienta. Składa
-              się z formularza z danymi rejestracyjnymi Twojego Klienta, danymi dotyczącymi zużycia energii
-              elektrycznej, komponentami elektrowni słonecznej oraz proponowanymi formami sfinansowania jej zakupu.
-            </p>
+            <div className="text-gray-600">
+              <p className="mb-4">
+                OZE System jest aplikacją webową, służącą do przygotowywania kompletnych wycen dla Twojego klienta.
+                Składa się z formularza z danymi rejestracyjnymi Twojego Klienta, danymi dotyczącymi zużycia energii
+                elektrycznej, komponentami elektrowni słonecznej oraz proponowanymi formami sfinansowania jej zakupu.
+              </p>
 
-            <p className="mb-4">
-              Gdy wpiszesz wymagane informacje, nasz kalkulator wygeneruje ofertę w formie PDF lub w formie linku do
-              udostępnienia w formacie html.
-            </p>
+              <p className="mb-4">
+                Gdy wpiszesz wymagane informacje, nasz kalkulator wygeneruje ofertę w formie PDF lub w formie linku do
+                udostępnienia w formacie html.
+              </p>
 
-            <p>
-              Ponadto OZE System posiada pełną bazę niezbędnych materiałów marketingowych i sprzedażowych niezbędnych w
-              Twojej pracy.
-            </p>
+              <p>
+                Ponadto OZE System posiada pełną bazę niezbędnych materiałów marketingowych i sprzedażowych niezbędnych
+                w Twojej pracy.
+              </p>
+            </div>
           </div>
         </div>
       </div>
