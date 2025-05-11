@@ -6,9 +6,8 @@ import Image from "next/image"
 import { LayoutDashboard, Calculator, Settings, FileText, Users, Moon, Menu, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { getSupabaseClient } from "@/lib/supabase"
+import { useState } from "react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -17,27 +16,14 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const router = useRouter()
-  const supabase = getSupabaseClient()
 
-  // Sprawdź, czy użytkownik jest zalogowany przy montowaniu komponentu
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data } = await supabase.auth.getSession()
-      if (!data.session) {
-        router.push("/auth/login")
-      }
-    }
-
-    checkSession()
-  }, [router, supabase.auth])
-
+  // Funkcja wylogowania - używa bezpośredniego podejścia
   const handleLogout = async () => {
     try {
       setIsLoggingOut(true)
 
-      // Wyczyść lokalny storage przed wylogowaniem
-      localStorage.removeItem("oze-system-auth")
+      // Utwórz nowy klient Supabase dla wylogowania
+      const supabase = createClientComponentClient()
 
       // Wyloguj użytkownika
       await supabase.auth.signOut()
@@ -46,6 +32,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       window.location.href = "/auth/login"
     } catch (error) {
       console.error("Błąd podczas wylogowywania:", error)
+      alert("Wystąpił błąd podczas wylogowywania. Spróbuj odświeżyć stronę.")
       setIsLoggingOut(false)
     }
   }

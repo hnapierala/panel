@@ -1,14 +1,14 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
-import { getSupabaseClient, clearSupabaseClient } from "@/lib/supabase"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -16,19 +16,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const supabase = getSupabaseClient()
-
-  // Sprawdź, czy użytkownik jest już zalogowany
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data } = await supabase.auth.getSession()
-      if (data.session) {
-        router.push("/dashboard")
-      }
-    }
-
-    checkSession()
-  }, [router, supabase.auth])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,10 +23,9 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      // Wyczyść poprzednią sesję
-      clearSupabaseClient()
+      // Utwórz nowy klient Supabase dla każdego logowania
+      const supabase = createClientComponentClient()
 
-      const supabase = getSupabaseClient()
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
