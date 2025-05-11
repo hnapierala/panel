@@ -1,15 +1,14 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
+import { getSupabaseClient } from "@/lib/supabase"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -17,7 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const supabase = createClientComponentClient()
+  const supabase = getSupabaseClient()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,6 +35,7 @@ export default function LoginPage() {
 
       // Przekieruj do dashboardu po pomyślnym logowaniu
       router.push("/dashboard")
+      router.refresh() // Odśwież router, aby zaktualizować stan sesji
     } catch (err: any) {
       console.error("Błąd logowania:", err)
       setError("Nieprawidłowy email lub hasło. Spróbuj ponownie.")

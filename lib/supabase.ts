@@ -9,7 +9,14 @@ export const getSupabaseClient = () => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
 
-    supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey)
+    supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        storageKey: "oze-system-auth",
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
   }
   return supabaseClient
 }

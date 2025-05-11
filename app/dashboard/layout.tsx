@@ -3,10 +3,12 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { LayoutDashboard, Calculator, Settings, FileText, Users, Moon, Menu } from "lucide-react"
+import { LayoutDashboard, Calculator, Settings, FileText, Users, Moon, Menu, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { getSupabaseClient } from "@/lib/supabase"
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -14,6 +16,18 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const router = useRouter()
+  const supabase = getSupabaseClient()
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut()
+      router.push("/auth/login")
+      router.refresh()
+    } catch (error) {
+      console.error("Błąd podczas wylogowywania:", error)
+    }
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
@@ -44,10 +58,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <Button
             variant="ghost"
             size="sm"
-            asChild
+            onClick={handleLogout}
             className="text-[#1E8A3C] hover:bg-transparent hover:text-[#1E8A3C]/80"
           >
-            <Link href="/auth/logout">Wyloguj</Link>
+            <LogOut className="mr-2 h-4 w-4" />
+            Wyloguj
           </Button>
         </div>
       </header>

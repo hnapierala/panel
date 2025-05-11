@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Loader2 } from "lucide-react"
+import { getSupabaseClient } from "@/lib/supabase"
 
 export default function LogoutPage() {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
-  const supabase = createClientComponentClient()
+  const supabase = getSupabaseClient()
 
   useEffect(() => {
     const handleLogout = async () => {
@@ -21,6 +21,7 @@ export default function LogoutPage() {
 
         // Przekieruj do strony logowania po pomyślnym wylogowaniu
         router.push("/auth/login")
+        router.refresh() // Odśwież router, aby zaktualizować stan sesji
       } catch (err) {
         console.error("Błąd podczas wylogowywania:", err)
         setError("Wystąpił błąd podczas wylogowywania. Spróbuj ponownie.")
