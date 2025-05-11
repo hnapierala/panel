@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "@/lib/supabase"
+// Importy typów
 import type {
   Panel,
   Inverter,
@@ -6,160 +6,135 @@ import type {
   MountingSystem,
   EnergyStorage,
   AccessoriesConfig,
-  QuoteData,
   PriceCalculation,
-  InverterType,
+  QuoteData,
 } from "@/types/calculator.types"
 
-// Eksportujemy funkcje bezpośrednio
-export async function getPanels(): Promise<Panel[]> {
-  const supabase = getSupabaseClient()
-  const { data, error } = await supabase.from("panels").select("*")
-
-  if (error) {
-    console.error("Błąd podczas pobierania paneli:", error)
-    return []
-  }
-
-  return data as unknown as Panel[]
+// Funkcje pomocnicze
+function getPanels() {
+  // Symulacja pobierania danych z API
+  return Promise.resolve([
+    { id: "1", manufacturer: "JA Solar", model: "JAM60S20", power: 380, price: 650 },
+    { id: "2", manufacturer: "JA Solar", model: "JAM72S30", power: 535, price: 850 },
+    { id: "3", manufacturer: "Longi Solar", model: "LR4-60HPB", power: 360, price: 620 },
+    { id: "4", manufacturer: "Longi Solar", model: "LR4-72HPH", power: 540, price: 870 },
+    { id: "5", manufacturer: "Jinko Solar", model: "JKM395M", power: 395, price: 680 },
+    { id: "6", manufacturer: "Jinko Solar", model: "JKM530M", power: 530, price: 840 },
+  ])
 }
 
-export async function getInverters(type?: InverterType): Promise<Inverter[]> {
-  const supabase = getSupabaseClient()
-  let query = supabase.from("inverters").select("*")
-
-  if (type && type !== "all") {
-    query = query.contains("type", [type])
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error("Błąd podczas pobierania falowników:", error)
-    return []
-  }
-
-  return data as unknown as Inverter[]
+function getInverters() {
+  // Symulacja pobierania danych z API
+  return Promise.resolve([
+    { id: "1", manufacturer: "SolarEdge", model: "SE5K", power: 5, type: ["grid"], price: 7500 },
+    { id: "2", manufacturer: "SolarEdge", model: "SE8K", power: 8, type: ["grid"], price: 9000 },
+    { id: "3", manufacturer: "SolarEdge", model: "SE10K", power: 10, type: ["grid"], price: 11000 },
+    { id: "4", manufacturer: "Fronius", model: "Primo 5.0", power: 5, type: ["grid"], price: 7200 },
+    { id: "5", manufacturer: "Fronius", model: "Primo 8.2", power: 8.2, type: ["grid"], price: 8800 },
+    { id: "6", manufacturer: "Huawei", model: "SUN2000-5KTL", power: 5, type: ["grid"], price: 6800 },
+    { id: "7", manufacturer: "Huawei", model: "SUN2000-10KTL", power: 10, type: ["grid"], price: 10500 },
+    { id: "8", manufacturer: "Sungrow", model: "SH5.0RT", power: 5, type: ["hybrid"], price: 9500 },
+    { id: "9", manufacturer: "Sungrow", model: "SH10RT", power: 10, type: ["hybrid"], price: 13000 },
+  ])
 }
 
-export async function getOptimizers(inverterId?: string): Promise<Optimizer[]> {
-  const supabase = getSupabaseClient()
-  let query = supabase.from("optimizers").select("*")
+function getOptimizers(inverterId?: string) {
+  // Symulacja pobierania danych z API
+  const optimizers = [
+    {
+      id: "1",
+      manufacturer: "SolarEdge",
+      model: "P370",
+      ratio: "1:1",
+      price: 250,
+      compatibleInverters: ["1", "2", "3"],
+    },
+    {
+      id: "2",
+      manufacturer: "SolarEdge",
+      model: "P401",
+      ratio: "1:1",
+      price: 280,
+      compatibleInverters: ["1", "2", "3"],
+    },
+    { id: "3", manufacturer: "SolarEdge", model: "P500", ratio: "1:2", price: 350, compatibleInverters: ["2", "3"] },
+    {
+      id: "4",
+      manufacturer: "Huawei",
+      model: "SUN2000-450W",
+      ratio: "1:1",
+      price: 220,
+      compatibleInverters: ["6", "7"],
+    },
+  ]
 
   if (inverterId) {
-    query = query.contains("compatible_inverters", [inverterId])
+    return Promise.resolve(optimizers.filter((o) => o.compatibleInverters.includes(inverterId)))
   }
 
-  const { data, error } = await query
-
-  if (error) {
-    console.error("Błąd podczas pobierania optymalizatorów:", error)
-    return []
-  }
-
-  return data.map((optimizer) => ({
-    id: optimizer.id,
-    manufacturer: optimizer.manufacturer,
-    model: optimizer.model,
-    price: optimizer.price,
-    compatibleInverters: optimizer.compatible_inverters,
-    ratio: optimizer.ratio,
-  })) as unknown as Optimizer[]
+  return Promise.resolve(optimizers)
 }
 
-export async function getMountingSystems(): Promise<MountingSystem[]> {
-  const supabase = getSupabaseClient()
-  const { data, error } = await supabase.from("mounting_systems").select("*")
-
-  if (error) {
-    console.error("Błąd podczas pobierania systemów montażowych:", error)
-    return []
-  }
-
-  return data as unknown as MountingSystem[]
+function getMountingSystems() {
+  // Symulacja pobierania danych z API
+  return Promise.resolve([
+    { id: "1", type: "roof_tile", name: "Dach skośny - dachówka", pricePerKw: 1200 },
+    { id: "2", type: "roof_sheet", name: "Dach skośny - blacha", pricePerKw: 1100 },
+    { id: "3", type: "roof_flat", name: "Dach płaski", pricePerKw: 1300 },
+    { id: "4", type: "ground", name: "Grunt", pricePerKw: 1500 },
+  ])
 }
 
-export async function getEnergyStorages(inverterId?: string): Promise<EnergyStorage[]> {
-  const supabase = getSupabaseClient()
-  let query = supabase.from("energy_storages").select("*")
+function getEnergyStorages(inverterId?: string) {
+  // Symulacja pobierania danych z API
+  const storages = [
+    { id: "1", manufacturer: "Sungrow", model: "SBR096", capacity: 9.6, price: 25000, compatibleInverters: ["8", "9"] },
+    {
+      id: "2",
+      manufacturer: "Sungrow",
+      model: "SBR128",
+      capacity: 12.8,
+      price: 32000,
+      compatibleInverters: ["8", "9"],
+    },
+    {
+      id: "3",
+      manufacturer: "Huawei",
+      model: "LUNA2000-10",
+      capacity: 10,
+      price: 28000,
+      compatibleInverters: ["6", "7"],
+    },
+    {
+      id: "4",
+      manufacturer: "Huawei",
+      model: "LUNA2000-15",
+      capacity: 15,
+      price: 38000,
+      compatibleInverters: ["6", "7"],
+    },
+  ]
 
   if (inverterId) {
-    query = query.contains("compatible_inverters", [inverterId])
+    return Promise.resolve(storages.filter((s) => s.compatibleInverters.includes(inverterId)))
   }
 
-  const { data, error } = await query
-
-  if (error) {
-    console.error("Błąd podczas pobierania magazynów energii:", error)
-    return []
-  }
-
-  return data.map((storage) => ({
-    id: storage.id,
-    manufacturer: storage.manufacturer,
-    model: storage.model,
-    capacity: storage.capacity,
-    price: storage.price,
-    compatibleInverters: storage.compatible_inverters,
-  })) as unknown as EnergyStorage[]
+  return Promise.resolve(storages)
 }
 
-export async function getAccessoriesConfig(): Promise<AccessoriesConfig> {
-  const supabase = getSupabaseClient()
-  const { data, error } = await supabase.from("accessories_config").select("*").single()
-
-  if (error) {
-    console.error("Błąd podczas pobierania konfiguracji akcesoriów:", error)
-    return { ranges: [] }
-  }
-
-  return data as unknown as AccessoriesConfig
+function getAccessoriesConfig() {
+  // Symulacja pobierania danych z API
+  return Promise.resolve({
+    ranges: [
+      { minPower: 0, maxPower: 5, price: 2500 },
+      { minPower: 5.01, maxPower: 10, price: 3500 },
+      { minPower: 10.01, maxPower: 20, price: 5000 },
+      { minPower: 20.01, maxPower: 50, price: 8000 },
+    ],
+  })
 }
 
-export async function saveQuote(quoteData: QuoteData): Promise<{ success: boolean; id?: string; error?: string }> {
-  const supabase = getSupabaseClient()
-
-  // Obliczanie daty wygaśnięcia (7 dni roboczych)
-  const expiresAt = new Date()
-  let businessDays = 7
-  while (businessDays > 0) {
-    expiresAt.setDate(expiresAt.getDate() + 1)
-    if (expiresAt.getDay() !== 0 && expiresAt.getDay() !== 6) {
-      businessDays--
-    }
-  }
-
-  const quoteToSave = {
-    ...quoteData,
-    expiresAt: expiresAt.toISOString(),
-    createdAt: new Date().toISOString(),
-    status: "active",
-  }
-
-  const { data, error } = await supabase.from("quotes").insert(quoteToSave).select("id").single()
-
-  if (error) {
-    console.error("Błąd podczas zapisywania wyceny:", error)
-    return { success: false, error: error.message }
-  }
-
-  return { success: true, id: data.id }
-}
-
-export function calculateAccessoriesPrice(power: number, config: AccessoriesConfig): number {
-  for (const range of config.ranges) {
-    if (power >= range.minPower && power <= range.maxPower) {
-      return range.price
-    }
-  }
-  // Jeśli nie znaleziono zakresu, zwracamy cenę dla ostatniego zakresu
-  if (config.ranges.length > 0) {
-    return config.ranges[config.ranges.length - 1].price
-  }
-  return 0
-}
-
-export function calculatePrice(
+function calculatePrice(
   panel: Panel,
   panelCount: number,
   inverter: Inverter,
@@ -167,50 +142,67 @@ export function calculatePrice(
   mountingSystem: MountingSystem,
   storage: EnergyStorage | null,
   accessoriesConfig: AccessoriesConfig,
-  margin = 0,
-  commissionRate = 0.8, // 80% z marży
+  marginPercentage: number,
 ): PriceCalculation {
-  // Upewnij się, że wszystkie wartości są liczbami
-  const power = (panel.power * panelCount) / 1000 // kW
+  // Obliczanie ceny paneli
+  const panelsPrice = panel.price * panelCount
 
-  // Zabezpieczenie przed NaN i undefined
-  const panelsPrice = panel.price ? panel.price * panelCount : 0
-  const inverterPrice = inverter.price || 0
-  const optimizersPrice = optimizer && optimizer.price ? optimizer.price * panelCount : 0
-  const mountingPrice = mountingSystem.pricePerKw ? mountingSystem.pricePerKw * power : 0
-  const storagePrice = storage && storage.price ? storage.price : 0
+  // Obliczanie ceny falownika
+  const inverterPrice = inverter.price
 
-  // Zabezpieczenie przed undefined w konfiguracji akcesoriów
+  // Obliczanie ceny optymalizatorów
+  const optimizersPrice = optimizer ? optimizer.price * panelCount : 0
+
+  // Obliczanie ceny systemu montażowego
+  const totalPower = (panel.power * panelCount) / 1000 // kWp
+  const mountingPrice = mountingSystem.pricePerKw * totalPower
+
+  // Obliczanie ceny magazynu energii
+  const storagePrice = storage ? storage.price : 0
+
+  // Obliczanie ceny akcesoriów
   let accessoriesPrice = 0
-  if (accessoriesConfig && accessoriesConfig.ranges && accessoriesConfig.ranges.length > 0) {
-    accessoriesPrice = calculateAccessoriesPrice(power, accessoriesConfig)
+  for (const range of accessoriesConfig.ranges) {
+    if (totalPower >= range.minPower && totalPower <= range.maxPower) {
+      accessoriesPrice = range.price
+      break
+    }
   }
 
+  // Obliczanie ceny bazowej
   const basePrice = panelsPrice + inverterPrice + optimizersPrice + mountingPrice + storagePrice + accessoriesPrice
 
-  // Zabezpieczenie przed NaN w obliczeniach marży
-  const safeMargin = isNaN(margin) ? 0 : margin
-  const marginAmount = basePrice * (safeMargin / 100)
-  const finalPrice = basePrice + marginAmount
-  const commission = marginAmount * commissionRate
+  // Obliczanie marży
+  const marginAmount = (basePrice * marginPercentage) / 100
 
-  // Zwróć obiekt z zaokrąglonymi wartościami, aby uniknąć problemów z wyświetlaniem
+  // Obliczanie ceny końcowej
+  const finalPrice = basePrice + marginAmount
+
+  // Obliczanie prowizji (80% marży)
+  const commission = marginAmount * 0.8
+
   return {
-    panelsPrice: Math.round(panelsPrice),
-    inverterPrice: Math.round(inverterPrice),
-    optimizersPrice: Math.round(optimizersPrice),
-    mountingPrice: Math.round(mountingPrice),
-    storagePrice: Math.round(storagePrice),
-    accessoriesPrice: Math.round(accessoriesPrice),
-    basePrice: Math.round(basePrice),
-    margin: safeMargin,
-    marginAmount: Math.round(marginAmount),
-    finalPrice: Math.round(finalPrice),
-    commission: Math.round(commission),
+    panelsPrice,
+    inverterPrice,
+    optimizersPrice,
+    mountingPrice,
+    storagePrice,
+    accessoriesPrice,
+    basePrice,
+    margin: marginPercentage,
+    marginAmount,
+    finalPrice,
+    commission,
   }
 }
 
-// Eksportujemy wszystkie funkcje jako obiekt CalculatorService
+function saveQuote(quoteData: QuoteData) {
+  // Symulacja zapisywania danych w API
+  console.log("Zapisywanie wyceny:", quoteData)
+  return Promise.resolve({ success: true })
+}
+
+// Eksport nazwanego obiektu CalculatorService
 export const CalculatorService = {
   getPanels,
   getInverters,
@@ -218,7 +210,9 @@ export const CalculatorService = {
   getMountingSystems,
   getEnergyStorages,
   getAccessoriesConfig,
-  saveQuote,
-  calculateAccessoriesPrice,
   calculatePrice,
+  saveQuote,
 }
+
+// Eksport domyślny dla kompatybilności
+export default CalculatorService

@@ -832,7 +832,6 @@ export default function BasePriceCalculatorPage() {
               />
             </div>
           </CardContent>
-
         </Card>
 
         {/* 1.2.1 Optymalizatory mocy */}
@@ -956,14 +955,15 @@ export default function BasePriceCalculatorPage() {
                   <FormMessage />
                 </FormItem>
               )}
-            </CardContent>
-          </Card>
-        </div>
+            />
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 
-  // Renderowanie kroku ceny bazowej\
-  const renderPriceStep = () => {\
+  // Renderowanie kroku ceny bazowej
+  const renderPriceStep = () => {
     return (
       <Card className="border-none shadow-sm">
         <CardHeader className="bg-white border-b border-neutral-100 px-6">

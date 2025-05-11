@@ -221,5 +221,11 @@ export const CalculatorService = {
   },
 }
 
-// Upewnijmy się, że mamy również eksport domyślny
+// Importujemy CalculatorService z istniejącego pliku calculator-service.ts
+// import { CalculatorService as CalculatorServiceImpl } from "./calculator-service";
+
+// Eksportujemy CalculatorService jako nazwany eksport
+// export const CalculatorService = CalculatorServiceImpl;
+
+// Eksport domyślny dla kompatybilności
 export default CalculatorService
