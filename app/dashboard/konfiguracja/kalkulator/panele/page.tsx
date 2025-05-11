@@ -88,13 +88,7 @@ export default function PanelsPage() {
   }
 
   const isFormValid = () => {
-    return (
-      formData.manufacturer.trim() !== "" &&
-      formData.model.trim() !== "" &&
-      formData.power > 0 &&
-      formData.price > 0 &&
-      formData.warranty_degradation.trim() !== ""
-    )
+    return formData.manufacturer.trim() !== "" && formData.model.trim() !== ""
   }
 
   const handleAddPanel = async () => {
@@ -305,7 +299,7 @@ export default function PanelsPage() {
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Anuluj
               </Button>
-              <Button className="bg-[#1E8A3C] hover:bg-[#1E8A3C]/90" onClick={handleAddPanel} disabled={!isFormValid()}>
+              <Button className="bg-[#1E8A3C] hover:bg-[#1E8A3C]/90" onClick={handleAddPanel}>
                 Dodaj
               </Button>
             </DialogFooter>
@@ -444,7 +438,7 @@ export default function PanelsPage() {
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Anuluj
             </Button>
-            <Button className="bg-[#1E8A3C] hover:bg-[#1E8A3C]/90" onClick={handleEditPanel} disabled={!isFormValid()}>
+            <Button className="bg-[#1E8A3C] hover:bg-[#1E8A3C]/90" onClick={handleEditPanel}>
               Zapisz zmiany
             </Button>
           </DialogFooter>
