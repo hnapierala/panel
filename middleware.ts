@@ -14,8 +14,8 @@ export async function middleware(req: NextRequest) {
   const isLoggedIn = !!session
 
   // Ścieżki, które nie wymagają autoryzacji
-  const publicPaths = ["/auth/login", "/auth/register", "/auth/reset-password"]
-  const isPublicPath = publicPaths.includes(req.nextUrl.pathname)
+  const publicPaths = ["/", "/auth/login", "/auth/register", "/auth/reset-password"]
+  const isPublicPath = publicPaths.some((path) => req.nextUrl.pathname === path)
 
   // Ścieżki autoryzacyjne
   const isAuthPath = req.nextUrl.pathname.startsWith("/auth/")

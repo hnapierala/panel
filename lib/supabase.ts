@@ -27,3 +27,8 @@ export const getServerSupabaseClient = () => {
 
   return createClient<Database>(supabaseUrl, supabaseServiceKey)
 }
+
+// Funkcja do czyszczenia klienta Supabase (używana przy wylogowaniu)
+export const clearSupabaseClient = () => {
+  supabaseClient = null
+}

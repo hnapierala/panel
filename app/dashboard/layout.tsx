@@ -6,7 +6,7 @@ import Image from "next/image"
 import { LayoutDashboard, Calculator, Settings, FileText, Users, Moon, Menu, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { getSupabaseClient } from "@/lib/supabase"
 
@@ -16,16 +16,37 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const router = useRouter()
   const supabase = getSupabaseClient()
 
+  // Sprawdź, czy użytkownik jest zalogowany przy montowaniu komponentu
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (!data.session) {
+        router.push("/auth/login")
+      }
+    }
+
+    checkSession()
+  }, [router, supabase.auth])
+
   const handleLogout = async () => {
     try {
+      setIsLoggingOut(true)
+
+      // Wyczyść lokalny storage przed wylogowaniem
+      localStorage.removeItem("oze-system-auth")
+
+      // Wyloguj użytkownika
       await supabase.auth.signOut()
-      router.push("/auth/login")
-      router.refresh()
+
+      // Przekieruj do strony logowania
+      window.location.href = "/auth/login"
     } catch (error) {
       console.error("Błąd podczas wylogowywania:", error)
+      setIsLoggingOut(false)
     }
   }
 
@@ -59,10 +80,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             variant="ghost"
             size="sm"
             onClick={handleLogout}
+            disabled={isLoggingOut}
             className="text-[#1E8A3C] hover:bg-transparent hover:text-[#1E8A3C]/80"
           >
             <LogOut className="mr-2 h-4 w-4" />
-            Wyloguj
+            {isLoggingOut ? "Wylogowywanie..." : "Wyloguj"}
           </Button>
         </div>
       </header>

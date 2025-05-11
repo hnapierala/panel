@@ -1,14 +1,14 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
-import { getSupabaseClient } from "@/lib/supabase"
+import { getSupabaseClient, clearSupabaseClient } from "@/lib/supabase"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -18,12 +18,28 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const supabase = getSupabaseClient()
 
+  // Sprawdź, czy użytkownik jest już zalogowany
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data.session) {
+        router.push("/dashboard")
+      }
+    }
+
+    checkSession()
+  }, [router, supabase.auth])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
 
     try {
+      // Wyczyść poprzednią sesję
+      clearSupabaseClient()
+
+      const supabase = getSupabaseClient()
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -34,8 +50,7 @@ export default function LoginPage() {
       }
 
       // Przekieruj do dashboardu po pomyślnym logowaniu
-      router.push("/dashboard")
-      router.refresh() // Odśwież router, aby zaktualizować stan sesji
+      window.location.href = "/dashboard"
     } catch (err: any) {
       console.error("Błąd logowania:", err)
       setError("Nieprawidłowy email lub hasło. Spróbuj ponownie.")
