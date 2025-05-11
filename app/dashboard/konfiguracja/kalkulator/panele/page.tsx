@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, Plus, Pencil, Trash2, Search } from "lucide-react"
+import { ArrowLeft, Plus, Pencil, Trash2, Search, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -18,17 +18,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { getSupabaseClient } from "@/lib/supabase"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import Image from "next/image"
 
 interface Panel {
   id: string
   manufacturer: string
   model: string
-  power: number
+  power: number // kWp
   price: number
-  efficiency: number
-  warranty: number
+  warranty_degradation: string
+  datasheet_url: string
 }
 
 export default function PanelsPage() {
@@ -44,8 +44,8 @@ export default function PanelsPage() {
     model: "",
     power: 0,
     price: 0,
-    efficiency: 0,
-    warranty: 0,
+    warranty_degradation: "",
+    datasheet_url: "",
   })
 
   useEffect(() => {
@@ -55,7 +55,7 @@ export default function PanelsPage() {
   async function fetchPanels() {
     try {
       setLoading(true)
-      const supabase = getSupabaseClient()
+      const supabase = createClientComponentClient()
       const { data, error } = await supabase.from("panels").select("*").order("manufacturer", { ascending: true })
 
       if (error) {
@@ -80,14 +80,36 @@ export default function PanelsPage() {
     const { name, value } = e.target
     setFormData({
       ...formData,
-      [name]: name === "manufacturer" || name === "model" ? value : Number(value),
+      [name]:
+        name === "manufacturer" || name === "model" || name === "warranty_degradation" || name === "datasheet_url"
+          ? value
+          : Number(value),
     })
+  }
+
+  const isFormValid = () => {
+    return (
+      formData.manufacturer.trim() !== "" &&
+      formData.model.trim() !== "" &&
+      formData.power > 0 &&
+      formData.price > 0 &&
+      formData.warranty_degradation.trim() !== ""
+    )
   }
 
   const handleAddPanel = async () => {
     try {
-      const supabase = getSupabaseClient()
-      const { error } = await supabase.from("panels").insert([formData])
+      const supabase = createClientComponentClient()
+      const { error } = await supabase.from("panels").insert([
+        {
+          manufacturer: formData.manufacturer,
+          model: formData.model,
+          power: formData.power,
+          price: formData.price,
+          warranty_degradation: formData.warranty_degradation,
+          datasheet_url: formData.datasheet_url,
+        },
+      ])
 
       if (error) {
         throw error
@@ -99,8 +121,8 @@ export default function PanelsPage() {
         model: "",
         power: 0,
         price: 0,
-        efficiency: 0,
-        warranty: 0,
+        warranty_degradation: "",
+        datasheet_url: "",
       })
       fetchPanels()
     } catch (error) {
@@ -112,8 +134,18 @@ export default function PanelsPage() {
     if (!currentPanel) return
 
     try {
-      const supabase = getSupabaseClient()
-      const { error } = await supabase.from("panels").update(formData).eq("id", currentPanel.id)
+      const supabase = createClientComponentClient()
+      const { error } = await supabase
+        .from("panels")
+        .update({
+          manufacturer: formData.manufacturer,
+          model: formData.model,
+          power: formData.power,
+          price: formData.price,
+          warranty_degradation: formData.warranty_degradation,
+          datasheet_url: formData.datasheet_url,
+        })
+        .eq("id", currentPanel.id)
 
       if (error) {
         throw error
@@ -131,7 +163,7 @@ export default function PanelsPage() {
     if (!currentPanel) return
 
     try {
-      const supabase = getSupabaseClient()
+      const supabase = createClientComponentClient()
       const { error } = await supabase.from("panels").delete().eq("id", currentPanel.id)
 
       if (error) {
@@ -153,8 +185,8 @@ export default function PanelsPage() {
       model: panel.model,
       power: panel.power,
       price: panel.price,
-      efficiency: panel.efficiency,
-      warranty: panel.warranty,
+      warranty_degradation: panel.warranty_degradation || "",
+      datasheet_url: panel.datasheet_url || "",
     })
     setIsEditDialogOpen(true)
   }
@@ -232,43 +264,48 @@ export default function PanelsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="power">Moc [W]</Label>
-                  <Input id="power" name="power" type="number" value={formData.power} onChange={handleInputChange} />
+                  <Label htmlFor="power">Moc [kWp]</Label>
+                  <Input
+                    id="power"
+                    name="power"
+                    type="number"
+                    step="0.001"
+                    value={formData.power}
+                    onChange={handleInputChange}
+                    placeholder="np. 0.455"
+                  />
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="price">Cena [PLN]</Label>
                   <Input id="price" name="price" type="number" value={formData.price} onChange={handleInputChange} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="efficiency">Wydajność [%]</Label>
-                  <Input
-                    id="efficiency"
-                    name="efficiency"
-                    type="number"
-                    step="0.01"
-                    value={formData.efficiency}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="warranty">Gwarancja [lata]</Label>
-                  <Input
-                    id="warranty"
-                    name="warranty"
-                    type="number"
-                    value={formData.warranty}
-                    onChange={handleInputChange}
-                  />
-                </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="warranty_degradation">Gwarancja liniowego spadku mocy</Label>
+                <Input
+                  id="warranty_degradation"
+                  name="warranty_degradation"
+                  value={formData.warranty_degradation}
+                  onChange={handleInputChange}
+                  placeholder="np. 25 lat, 85% mocy po 25 latach"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="datasheet_url">Link do karty katalogowej (PDF)</Label>
+                <Input
+                  id="datasheet_url"
+                  name="datasheet_url"
+                  value={formData.datasheet_url}
+                  onChange={handleInputChange}
+                  placeholder="https://example.com/datasheet.pdf"
+                />
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Anuluj
               </Button>
-              <Button className="bg-[#1E8A3C] hover:bg-[#1E8A3C]/90" onClick={handleAddPanel}>
+              <Button className="bg-[#1E8A3C] hover:bg-[#1E8A3C]/90" onClick={handleAddPanel} disabled={!isFormValid()}>
                 Dodaj
               </Button>
             </DialogFooter>
@@ -282,10 +319,10 @@ export default function PanelsPage() {
             <TableRow>
               <TableHead>Producent</TableHead>
               <TableHead>Model</TableHead>
-              <TableHead>Moc [W]</TableHead>
+              <TableHead>Moc [kWp]</TableHead>
               <TableHead>Cena [PLN]</TableHead>
-              <TableHead>Wydajność [%]</TableHead>
-              <TableHead>Gwarancja [lata]</TableHead>
+              <TableHead>Gwarancja</TableHead>
+              <TableHead>Karta katalogowa</TableHead>
               <TableHead className="text-right">Akcje</TableHead>
             </TableRow>
           </TableHeader>
@@ -307,10 +344,24 @@ export default function PanelsPage() {
                 <TableRow key={panel.id}>
                   <TableCell>{panel.manufacturer}</TableCell>
                   <TableCell>{panel.model}</TableCell>
-                  <TableCell>{panel.power}</TableCell>
+                  <TableCell>{panel.power.toFixed(3)}</TableCell>
                   <TableCell>{panel.price.toLocaleString()} zł</TableCell>
-                  <TableCell>{panel.efficiency}%</TableCell>
-                  <TableCell>{panel.warranty}</TableCell>
+                  <TableCell>{panel.warranty_degradation || "-"}</TableCell>
+                  <TableCell>
+                    {panel.datasheet_url ? (
+                      <a
+                        href={panel.datasheet_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 flex items-center"
+                      >
+                        <FileText className="h-4 w-4 mr-1" />
+                        PDF
+                      </a>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button variant="ghost" size="icon" onClick={() => openEditDialog(panel)} className="h-8 w-8">
@@ -355,43 +406,45 @@ export default function PanelsPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="edit-power">Moc [W]</Label>
-                <Input id="edit-power" name="power" type="number" value={formData.power} onChange={handleInputChange} />
+                <Label htmlFor="edit-power">Moc [kWp]</Label>
+                <Input
+                  id="edit-power"
+                  name="power"
+                  type="number"
+                  step="0.001"
+                  value={formData.power}
+                  onChange={handleInputChange}
+                />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="edit-price">Cena [PLN]</Label>
                 <Input id="edit-price" name="price" type="number" value={formData.price} onChange={handleInputChange} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="edit-efficiency">Wydajność [%]</Label>
-                <Input
-                  id="edit-efficiency"
-                  name="efficiency"
-                  type="number"
-                  step="0.01"
-                  value={formData.efficiency}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="edit-warranty">Gwarancja [lata]</Label>
-                <Input
-                  id="edit-warranty"
-                  name="warranty"
-                  type="number"
-                  value={formData.warranty}
-                  onChange={handleInputChange}
-                />
-              </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="edit-warranty_degradation">Gwarancja liniowego spadku mocy</Label>
+              <Input
+                id="edit-warranty_degradation"
+                name="warranty_degradation"
+                value={formData.warranty_degradation}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="edit-datasheet_url">Link do karty katalogowej (PDF)</Label>
+              <Input
+                id="edit-datasheet_url"
+                name="datasheet_url"
+                value={formData.datasheet_url}
+                onChange={handleInputChange}
+              />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Anuluj
             </Button>
-            <Button className="bg-[#1E8A3C] hover:bg-[#1E8A3C]/90" onClick={handleEditPanel}>
+            <Button className="bg-[#1E8A3C] hover:bg-[#1E8A3C]/90" onClick={handleEditPanel} disabled={!isFormValid()}>
               Zapisz zmiany
             </Button>
           </DialogFooter>
