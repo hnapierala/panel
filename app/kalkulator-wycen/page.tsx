@@ -16,8 +16,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ArrowLeft, ArrowRight, Calculator, Save, Plus, Minus, AlertCircle, Loader2 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-// Importujemy CalculatorService z nowego pliku
-import { CalculatorService } from "@/services/calculator-service"
+// Aktualizacja importu - importujemy z calculator.service.ts
+import { CalculatorService } from "@/services/calculator.service"
 import { Stepper } from "@/components/stepper"
 import type {
   Panel,

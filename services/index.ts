@@ -1,2 +1,2 @@
-// Re-eksportujemy CalculatorService z nowego pliku
-export { CalculatorService } from "./calculator-service"
+// Re-eksportujemy CalculatorService z pliku calculator.service.ts
+export { CalculatorService } from "./calculator.service"
