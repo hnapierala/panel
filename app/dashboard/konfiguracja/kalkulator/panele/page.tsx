@@ -20,13 +20,16 @@ import {
 import { Label } from "@/components/ui/label"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import Image from "next/image"
+import { toast } from "@/components/ui/use-toast"
 
 interface Panel {
   id: string
   manufacturer: string
   model: string
   power: number // kWp
-  price: number
+  purchase_price: number // Cena zakupu
+  margin: number // Marża (%)
+  price: number // Cena do kalkulatora (cena końcowa)
   warranty_degradation: string
   datasheet_url: string
 }
@@ -43,14 +46,28 @@ export default function PanelsPage() {
     manufacturer: "",
     model: "",
     power: 0,
+    purchase_price: 0,
+    margin: 20, // Domyślna marża 20%
     price: 0,
     warranty_degradation: "",
     datasheet_url: "",
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     fetchPanels()
   }, [])
+
+  // Automatycznie oblicz cenę końcową na podstawie ceny zakupu i marży
+  useEffect(() => {
+    if (formData.purchase_price > 0 && formData.margin >= 0) {
+      const calculatedPrice = formData.purchase_price * (1 + formData.margin / 100)
+      setFormData((prev) => ({
+        ...prev,
+        price: Math.round(calculatedPrice * 100) / 100, // Zaokrąglenie do 2 miejsc po przecinku
+      }))
+    }
+  }, [formData.purchase_price, formData.margin])
 
   async function fetchPanels() {
     try {
@@ -59,12 +76,23 @@ export default function PanelsPage() {
       const { data, error } = await supabase.from("panels").select("*").order("manufacturer", { ascending: true })
 
       if (error) {
-        throw error
+        console.error("Error fetching panels:", error)
+        toast({
+          title: "Błąd",
+          description: "Nie udało się pobrać paneli: " + error.message,
+          variant: "destructive",
+        })
+        return
       }
 
       setPanels(data || [])
     } catch (error) {
       console.error("Błąd podczas pobierania paneli:", error)
+      toast({
+        title: "Błąd",
+        description: "Wystąpił nieoczekiwany błąd podczas pobierania paneli",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
@@ -87,88 +115,160 @@ export default function PanelsPage() {
     })
   }
 
-  const isFormValid = () => {
-    return formData.manufacturer.trim() !== "" && formData.model.trim() !== ""
-  }
+  const handleAddPanel = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    console.log("Add panel button clicked")
+    console.log("Form data:", formData)
 
-  const handleAddPanel = async () => {
+    if (isSubmitting) return
+
     try {
+      setIsSubmitting(true)
+      console.log("Submitting form...")
+
       const supabase = createClientComponentClient()
-      const { error } = await supabase.from("panels").insert([
-        {
-          manufacturer: formData.manufacturer,
-          model: formData.model,
-          power: formData.power,
-          price: formData.price,
-          warranty_degradation: formData.warranty_degradation,
-          datasheet_url: formData.datasheet_url,
-        },
-      ])
+      console.log("Supabase client created")
+
+      const newPanel = {
+        manufacturer: formData.manufacturer,
+        model: formData.model,
+        power: formData.power || 0,
+        purchase_price: formData.purchase_price || 0,
+        margin: formData.margin || 0,
+        price: formData.price || 0,
+        warranty_degradation: formData.warranty_degradation || "",
+        datasheet_url: formData.datasheet_url || "",
+      }
+
+      console.log("Inserting panel:", newPanel)
+      const { data, error } = await supabase.from("panels").insert([newPanel]).select()
 
       if (error) {
-        throw error
+        console.error("Error adding panel:", error)
+        toast({
+          title: "Błąd",
+          description: "Nie udało się dodać panelu: " + error.message,
+          variant: "destructive",
+        })
+        return
       }
+
+      console.log("Panel added successfully:", data)
+      toast({
+        title: "Sukces",
+        description: "Panel został dodany pomyślnie",
+      })
 
       setIsAddDialogOpen(false)
       setFormData({
         manufacturer: "",
         model: "",
         power: 0,
+        purchase_price: 0,
+        margin: 20,
         price: 0,
         warranty_degradation: "",
         datasheet_url: "",
       })
       fetchPanels()
     } catch (error) {
-      console.error("Błąd podczas dodawania panelu:", error)
+      console.error("Unexpected error adding panel:", error)
+      toast({
+        title: "Błąd",
+        description: "Wystąpił nieoczekiwany błąd podczas dodawania panelu",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  const handleEditPanel = async () => {
-    if (!currentPanel) return
+  const handleEditPanel = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    if (!currentPanel || isSubmitting) return
 
     try {
+      setIsSubmitting(true)
       const supabase = createClientComponentClient()
       const { error } = await supabase
         .from("panels")
         .update({
           manufacturer: formData.manufacturer,
           model: formData.model,
-          power: formData.power,
-          price: formData.price,
-          warranty_degradation: formData.warranty_degradation,
-          datasheet_url: formData.datasheet_url,
+          power: formData.power || 0,
+          purchase_price: formData.purchase_price || 0,
+          margin: formData.margin || 0,
+          price: formData.price || 0,
+          warranty_degradation: formData.warranty_degradation || "",
+          datasheet_url: formData.datasheet_url || "",
         })
         .eq("id", currentPanel.id)
 
       if (error) {
-        throw error
+        console.error("Error editing panel:", error)
+        toast({
+          title: "Błąd",
+          description: "Nie udało się zaktualizować panelu: " + error.message,
+          variant: "destructive",
+        })
+        return
       }
+
+      toast({
+        title: "Sukces",
+        description: "Panel został zaktualizowany pomyślnie",
+      })
 
       setIsEditDialogOpen(false)
       setCurrentPanel(null)
       fetchPanels()
     } catch (error) {
       console.error("Błąd podczas edycji panelu:", error)
+      toast({
+        title: "Błąd",
+        description: "Wystąpił nieoczekiwany błąd podczas aktualizacji panelu",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleDeletePanel = async () => {
-    if (!currentPanel) return
+    if (!currentPanel || isSubmitting) return
 
     try {
+      setIsSubmitting(true)
       const supabase = createClientComponentClient()
       const { error } = await supabase.from("panels").delete().eq("id", currentPanel.id)
 
       if (error) {
-        throw error
+        console.error("Error deleting panel:", error)
+        toast({
+          title: "Błąd",
+          description: "Nie udało się usunąć panelu: " + error.message,
+          variant: "destructive",
+        })
+        return
       }
+
+      toast({
+        title: "Sukces",
+        description: "Panel został usunięty pomyślnie",
+      })
 
       setIsDeleteDialogOpen(false)
       setCurrentPanel(null)
       fetchPanels()
     } catch (error) {
       console.error("Błąd podczas usuwania panelu:", error)
+      toast({
+        title: "Błąd",
+        description: "Wystąpił nieoczekiwany błąd podczas usuwania panelu",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -178,6 +278,8 @@ export default function PanelsPage() {
       manufacturer: panel.manufacturer,
       model: panel.model,
       power: panel.power,
+      purchase_price: panel.purchase_price || 0,
+      margin: panel.margin || 20,
       price: panel.price,
       warranty_degradation: panel.warranty_degradation || "",
       datasheet_url: panel.datasheet_url || "",
@@ -236,73 +338,111 @@ export default function PanelsPage() {
             </Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Dodaj nowy panel</DialogTitle>
-              <DialogDescription>Wprowadź dane nowego panelu fotowoltaicznego.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={(e) => e.preventDefault()}>
+              <DialogHeader>
+                <DialogTitle>Dodaj nowy panel</DialogTitle>
+                <DialogDescription>Wprowadź dane nowego panelu fotowoltaicznego.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="manufacturer">Producent</Label>
+                    <Input
+                      id="manufacturer"
+                      name="manufacturer"
+                      value={formData.manufacturer}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="model">Model</Label>
+                    <Input id="model" name="model" value={formData.model} onChange={handleInputChange} required />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="power">Moc [kWp]</Label>
+                    <Input
+                      id="power"
+                      name="power"
+                      type="number"
+                      step="0.001"
+                      value={formData.power}
+                      onChange={handleInputChange}
+                      placeholder="np. 0.455"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="purchase_price">Cena zakupu [PLN]</Label>
+                    <Input
+                      id="purchase_price"
+                      name="purchase_price"
+                      type="number"
+                      value={formData.purchase_price}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="margin">Marża [%]</Label>
+                    <Input
+                      id="margin"
+                      name="margin"
+                      type="number"
+                      value={formData.margin}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="price">Cena końcowa [PLN]</Label>
+                    <Input
+                      id="price"
+                      name="price"
+                      type="number"
+                      value={formData.price}
+                      onChange={handleInputChange}
+                      className="bg-gray-50"
+                      readOnly
+                    />
+                  </div>
+                </div>
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="manufacturer">Producent</Label>
+                  <Label htmlFor="warranty_degradation">Gwarancja liniowego spadku mocy</Label>
                   <Input
-                    id="manufacturer"
-                    name="manufacturer"
-                    value={formData.manufacturer}
+                    id="warranty_degradation"
+                    name="warranty_degradation"
+                    value={formData.warranty_degradation}
                     onChange={handleInputChange}
+                    placeholder="np. 25 lat, 85% mocy po 25 latach"
                   />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="model">Model</Label>
-                  <Input id="model" name="model" value={formData.model} onChange={handleInputChange} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="power">Moc [kWp]</Label>
+                  <Label htmlFor="datasheet_url">Link do karty katalogowej (PDF)</Label>
                   <Input
-                    id="power"
-                    name="power"
-                    type="number"
-                    step="0.001"
-                    value={formData.power}
+                    id="datasheet_url"
+                    name="datasheet_url"
+                    value={formData.datasheet_url}
                     onChange={handleInputChange}
-                    placeholder="np. 0.455"
+                    placeholder="https://example.com/datasheet.pdf"
                   />
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="price">Cena [PLN]</Label>
-                  <Input id="price" name="price" type="number" value={formData.price} onChange={handleInputChange} />
-                </div>
               </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="warranty_degradation">Gwarancja liniowego spadku mocy</Label>
-                <Input
-                  id="warranty_degradation"
-                  name="warranty_degradation"
-                  value={formData.warranty_degradation}
-                  onChange={handleInputChange}
-                  placeholder="np. 25 lat, 85% mocy po 25 latach"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="datasheet_url">Link do karty katalogowej (PDF)</Label>
-                <Input
-                  id="datasheet_url"
-                  name="datasheet_url"
-                  value={formData.datasheet_url}
-                  onChange={handleInputChange}
-                  placeholder="https://example.com/datasheet.pdf"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                Anuluj
-              </Button>
-              <Button className="bg-[#1E8A3C] hover:bg-[#1E8A3C]/90" onClick={handleAddPanel}>
-                Dodaj
-              </Button>
-            </DialogFooter>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} type="button">
+                  Anuluj
+                </Button>
+                <Button
+                  className="bg-[#1E8A3C] hover:bg-[#1E8A3C]/90"
+                  onClick={handleAddPanel}
+                  disabled={isSubmitting}
+                  type="submit"
+                >
+                  {isSubmitting ? "Dodawanie..." : "Dodaj"}
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
@@ -314,7 +454,9 @@ export default function PanelsPage() {
               <TableHead>Producent</TableHead>
               <TableHead>Model</TableHead>
               <TableHead>Moc [kWp]</TableHead>
-              <TableHead>Cena [PLN]</TableHead>
+              <TableHead>Cena zakupu [PLN]</TableHead>
+              <TableHead>Marża [%]</TableHead>
+              <TableHead>Cena końcowa [PLN]</TableHead>
               <TableHead>Gwarancja</TableHead>
               <TableHead>Karta katalogowa</TableHead>
               <TableHead className="text-right">Akcje</TableHead>
@@ -323,13 +465,13 @@ export default function PanelsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={9} className="text-center py-8">
                   Ładowanie danych...
                 </TableCell>
               </TableRow>
             ) : filteredPanels.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={9} className="text-center py-8">
                   Nie znaleziono paneli. Dodaj pierwszy panel, klikając przycisk "Dodaj panel".
                 </TableCell>
               </TableRow>
@@ -339,6 +481,8 @@ export default function PanelsPage() {
                   <TableCell>{panel.manufacturer}</TableCell>
                   <TableCell>{panel.model}</TableCell>
                   <TableCell>{panel.power.toFixed(3)}</TableCell>
+                  <TableCell>{panel.purchase_price?.toLocaleString() || "-"} zł</TableCell>
+                  <TableCell>{panel.margin?.toFixed(1) || "-"}%</TableCell>
                   <TableCell>{panel.price.toLocaleString()} zł</TableCell>
                   <TableCell>{panel.warranty_degradation || "-"}</TableCell>
                   <TableCell>
@@ -378,70 +522,108 @@ export default function PanelsPage() {
       {/* Dialog edycji */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edytuj panel</DialogTitle>
-            <DialogDescription>Zmień dane panelu fotowoltaicznego.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={(e) => e.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle>Edytuj panel</DialogTitle>
+              <DialogDescription>Zmień dane panelu fotowoltaicznego.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="edit-manufacturer">Producent</Label>
+                  <Input
+                    id="edit-manufacturer"
+                    name="manufacturer"
+                    value={formData.manufacturer}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="edit-model">Model</Label>
+                  <Input id="edit-model" name="model" value={formData.model} onChange={handleInputChange} required />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="edit-power">Moc [kWp]</Label>
+                  <Input
+                    id="edit-power"
+                    name="power"
+                    type="number"
+                    step="0.001"
+                    value={formData.power}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="edit-purchase_price">Cena zakupu [PLN]</Label>
+                  <Input
+                    id="edit-purchase_price"
+                    name="purchase_price"
+                    type="number"
+                    value={formData.purchase_price}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="edit-margin">Marża [%]</Label>
+                  <Input
+                    id="edit-margin"
+                    name="margin"
+                    type="number"
+                    value={formData.margin}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="edit-price">Cena końcowa [PLN]</Label>
+                  <Input
+                    id="edit-price"
+                    name="price"
+                    type="number"
+                    value={formData.price}
+                    onChange={handleInputChange}
+                    className="bg-gray-50"
+                    readOnly
+                  />
+                </div>
+              </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="edit-manufacturer">Producent</Label>
+                <Label htmlFor="edit-warranty_degradation">Gwarancja liniowego spadku mocy</Label>
                 <Input
-                  id="edit-manufacturer"
-                  name="manufacturer"
-                  value={formData.manufacturer}
+                  id="edit-warranty_degradation"
+                  name="warranty_degradation"
+                  value={formData.warranty_degradation}
                   onChange={handleInputChange}
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="edit-model">Model</Label>
-                <Input id="edit-model" name="model" value={formData.model} onChange={handleInputChange} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="edit-power">Moc [kWp]</Label>
+                <Label htmlFor="edit-datasheet_url">Link do karty katalogowej (PDF)</Label>
                 <Input
-                  id="edit-power"
-                  name="power"
-                  type="number"
-                  step="0.001"
-                  value={formData.power}
+                  id="edit-datasheet_url"
+                  name="datasheet_url"
+                  value={formData.datasheet_url}
                   onChange={handleInputChange}
                 />
               </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="edit-price">Cena [PLN]</Label>
-                <Input id="edit-price" name="price" type="number" value={formData.price} onChange={handleInputChange} />
-              </div>
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="edit-warranty_degradation">Gwarancja liniowego spadku mocy</Label>
-              <Input
-                id="edit-warranty_degradation"
-                name="warranty_degradation"
-                value={formData.warranty_degradation}
-                onChange={handleInputChange}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="edit-datasheet_url">Link do karty katalogowej (PDF)</Label>
-              <Input
-                id="edit-datasheet_url"
-                name="datasheet_url"
-                value={formData.datasheet_url}
-                onChange={handleInputChange}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Anuluj
-            </Button>
-            <Button className="bg-[#1E8A3C] hover:bg-[#1E8A3C]/90" onClick={handleEditPanel}>
-              Zapisz zmiany
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} type="button">
+                Anuluj
+              </Button>
+              <Button
+                className="bg-[#1E8A3C] hover:bg-[#1E8A3C]/90"
+                onClick={handleEditPanel}
+                disabled={isSubmitting}
+                type="submit"
+              >
+                {isSubmitting ? "Zapisywanie..." : "Zapisz zmiany"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -458,8 +640,8 @@ export default function PanelsPage() {
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Anuluj
             </Button>
-            <Button variant="destructive" onClick={handleDeletePanel}>
-              Usuń
+            <Button variant="destructive" onClick={handleDeletePanel} disabled={isSubmitting}>
+              {isSubmitting ? "Usuwanie..." : "Usuń"}
             </Button>
           </DialogFooter>
         </DialogContent>

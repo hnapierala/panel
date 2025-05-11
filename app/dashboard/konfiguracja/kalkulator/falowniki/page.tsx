@@ -19,10 +19,11 @@ import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { ArrowLeft, Plus, Pencil, Trash2, Search, Loader2, AlertCircle } from "lucide-react"
 import Link from "next/link"
-import { getSupabaseClient } from "@/lib/supabase"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
+import { toast } from "@/components/ui/use-toast"
 
 // Definicja typu dla falownika
 interface Inverter {
@@ -31,6 +32,8 @@ interface Inverter {
   model: string
   power: number
   price: number
+  purchase_price?: number
+  margin?: number
   type: string[]
   efficiency: number
   warranty: number
@@ -42,7 +45,9 @@ const inverterFormSchema = z.object({
   manufacturer: z.string().min(1, { message: "Producent jest wymagany" }),
   model: z.string().min(1, { message: "Model jest wymagany" }),
   power: z.coerce.number().min(0.1, { message: "Moc musi być większa od 0" }),
-  price: z.coerce.number().min(1, { message: "Cena musi być większa od 0" }),
+  price: z.coerce.number().min(0, { message: "Cena nie może być ujemna" }),
+  purchase_price: z.coerce.number().min(0, { message: "Cena zakupu nie może być ujemna" }),
+  margin: z.coerce.number().min(0, { message: "Marża nie może być ujemna" }),
   type: z.array(z.string()).min(1, { message: "Wybierz co najmniej jeden typ falownika" }),
   efficiency: z.coerce.number().min(1).max(100, { message: "Wydajność musi być między 1 a 100%" }),
   warranty: z.coerce.number().min(1, { message: "Gwarancja musi być większa od 0" }),
@@ -69,11 +74,30 @@ export default function InvertersPage() {
       model: "",
       power: 0,
       price: 0,
+      purchase_price: 0,
+      margin: 20, // Domyślna marża 20%
       type: [],
       efficiency: 0,
       warranty: 0,
     },
   })
+
+  // Efekt do automatycznego obliczania ceny końcowej na podstawie ceny zakupu i marży
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === "purchase_price" || name === "margin") {
+        const purchasePrice = Number.parseFloat(value.purchase_price?.toString() || "0")
+        const margin = Number.parseFloat(value.margin?.toString() || "0")
+
+        if (!isNaN(purchasePrice) && !isNaN(margin)) {
+          const finalPrice = purchasePrice * (1 + margin / 100)
+          form.setValue("price", Math.round(finalPrice * 100) / 100)
+        }
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [form])
 
   // Pobieranie falowników z bazy danych
   useEffect(() => {
@@ -81,7 +105,7 @@ export default function InvertersPage() {
       setIsLoading(true)
       setError(null)
       try {
-        const supabase = getSupabaseClient()
+        const supabase = createClientComponentClient()
         const { data, error } = await supabase
           .from("inverters")
           .select("*")
@@ -126,18 +150,28 @@ export default function InvertersPage() {
     setError(null)
 
     try {
-      const supabase = getSupabaseClient()
+      const supabase = createClientComponentClient()
 
       if (editingInverter) {
         // Aktualizacja istniejącego falownika
         const { error } = await supabase.from("inverters").update(values).eq("id", editingInverter.id)
 
         if (error) throw new Error(error.message)
+
+        toast({
+          title: "Falownik zaktualizowany",
+          description: `Falownik ${values.manufacturer} ${values.model} został pomyślnie zaktualizowany.`,
+        })
       } else {
         // Dodawanie nowego falownika
         const { error } = await supabase.from("inverters").insert([values])
 
         if (error) throw new Error(error.message)
+
+        toast({
+          title: "Falownik dodany",
+          description: `Falownik ${values.manufacturer} ${values.model} został pomyślnie dodany.`,
+        })
       }
 
       // Odświeżenie listy falowników
@@ -159,6 +193,11 @@ export default function InvertersPage() {
     } catch (err) {
       console.error("Błąd podczas zapisywania falownika:", err)
       setError("Wystąpił błąd podczas zapisywania danych. Spróbuj ponownie.")
+      toast({
+        variant: "destructive",
+        title: "Błąd",
+        description: "Wystąpił błąd podczas zapisywania falownika. Spróbuj ponownie.",
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -172,11 +211,16 @@ export default function InvertersPage() {
     setError(null)
 
     try {
-      const supabase = getSupabaseClient()
+      const supabase = createClientComponentClient()
 
       const { error } = await supabase.from("inverters").delete().eq("id", inverterToDelete.id)
 
       if (error) throw new Error(error.message)
+
+      toast({
+        title: "Falownik usunięty",
+        description: `Falownik ${inverterToDelete.manufacturer} ${inverterToDelete.model} został pomyślnie usunięty.`,
+      })
 
       // Odświeżenie listy falowników
       const { data, error: fetchError } = await supabase
@@ -196,6 +240,11 @@ export default function InvertersPage() {
     } catch (err) {
       console.error("Błąd podczas usuwania falownika:", err)
       setError("Wystąpił błąd podczas usuwania danych. Spróbuj ponownie.")
+      toast({
+        variant: "destructive",
+        title: "Błąd",
+        description: "Wystąpił błąd podczas usuwania falownika. Spróbuj ponownie.",
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -209,6 +258,8 @@ export default function InvertersPage() {
       model: inverter.model,
       power: inverter.power,
       price: inverter.price,
+      purchase_price: inverter.purchase_price || 0,
+      margin: inverter.margin || 20,
       type: inverter.type,
       efficiency: inverter.efficiency,
       warranty: inverter.warranty,
@@ -230,6 +281,8 @@ export default function InvertersPage() {
       model: "",
       power: 0,
       price: 0,
+      purchase_price: 0,
+      margin: 20, // Domyślna marża 20%
       type: [],
       efficiency: 0,
       warranty: 0,
@@ -299,20 +352,22 @@ export default function InvertersPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[180px]">Producent</TableHead>
-              <TableHead className="w-[200px]">Model</TableHead>
+              <TableHead className="w-[150px]">Producent</TableHead>
+              <TableHead className="w-[180px]">Model</TableHead>
               <TableHead className="text-right">Moc [kW]</TableHead>
               <TableHead>Typ</TableHead>
               <TableHead className="text-right">Wydajność [%]</TableHead>
               <TableHead className="text-right">Gwarancja [lat]</TableHead>
-              <TableHead className="text-right">Cena [PLN]</TableHead>
-              <TableHead className="text-right w-[120px]">Akcje</TableHead>
+              <TableHead className="text-right">Cena zakupu [PLN]</TableHead>
+              <TableHead className="text-right">Marża [%]</TableHead>
+              <TableHead className="text-right">Cena końcowa [PLN]</TableHead>
+              <TableHead className="text-right w-[100px]">Akcje</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
+                <TableCell colSpan={10} className="h-24 text-center">
                   <div className="flex justify-center items-center">
                     <Loader2 className="h-6 w-6 animate-spin text-[#1E8A3C]" />
                     <span className="ml-2">Ładowanie danych...</span>
@@ -321,7 +376,7 @@ export default function InvertersPage() {
               </TableRow>
             ) : filteredInverters.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center text-neutral-500">
+                <TableCell colSpan={10} className="h-24 text-center text-neutral-500">
                   {searchTerm
                     ? "Nie znaleziono falowników spełniających kryteria wyszukiwania"
                     : "Brak falowników w bazie danych"}
@@ -347,6 +402,8 @@ export default function InvertersPage() {
                   </TableCell>
                   <TableCell className="text-right">{inverter.efficiency}%</TableCell>
                   <TableCell className="text-right">{inverter.warranty}</TableCell>
+                  <TableCell className="text-right">{inverter.purchase_price?.toLocaleString() || "-"} PLN</TableCell>
+                  <TableCell className="text-right">{inverter.margin?.toLocaleString() || "-"}%</TableCell>
                   <TableCell className="text-right">{inverter.price.toLocaleString()} PLN</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -367,7 +424,7 @@ export default function InvertersPage() {
 
       {/* Dialog formularza dodawania/edycji */}
       <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>{editingInverter ? "Edytuj falownik" : "Dodaj nowy falownik"}</DialogTitle>
             <DialogDescription>
@@ -385,7 +442,7 @@ export default function InvertersPage() {
                     <FormItem>
                       <FormLabel>Producent</FormLabel>
                       <FormControl>
-                        <Input placeholder="Producent" {...field} />
+                        <Input placeholder="Producent" {...field} required />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -399,7 +456,7 @@ export default function InvertersPage() {
                     <FormItem>
                       <FormLabel>Model</FormLabel>
                       <FormControl>
-                        <Input placeholder="Model" {...field} />
+                        <Input placeholder="Model" {...field} required />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -415,7 +472,7 @@ export default function InvertersPage() {
                     <FormItem>
                       <FormLabel>Moc [kW]</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.1" placeholder="Moc" {...field} />
+                        <Input type="number" step="0.1" placeholder="Moc" {...field} required />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -429,7 +486,7 @@ export default function InvertersPage() {
                     <FormItem>
                       <FormLabel>Wydajność [%]</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="Wydajność" {...field} />
+                        <Input type="number" placeholder="Wydajność" {...field} required />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -445,7 +502,90 @@ export default function InvertersPage() {
                     <FormItem>
                       <FormLabel>Gwarancja [lat]</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="Gwarancja" {...field} />
+                        <Input type="number" placeholder="Gwarancja" {...field} required />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="type"
+                  render={() => (
+                    <FormItem>
+                      <FormLabel>Typ falownika</FormLabel>
+                      <div className="flex flex-wrap gap-2">
+                        {["grid", "hybrid", "offgrid"].map((type) => {
+                          const typeInfo = getInverterTypeLabel(type)
+                          return (
+                            <Badge
+                              key={type}
+                              className={`${
+                                form.watch("type")?.includes(type) ? typeInfo.color : "bg-gray-100 text-gray-500"
+                              } cursor-pointer px-3 py-1`}
+                              onClick={() => {
+                                const currentTypes = form.getValues("type") || []
+                                if (currentTypes.includes(type)) {
+                                  form.setValue(
+                                    "type",
+                                    currentTypes.filter((t) => t !== type),
+                                  )
+                                } else {
+                                  form.setValue("type", [...currentTypes, type])
+                                }
+                              }}
+                            >
+                              {typeInfo.label}
+                            </Badge>
+                          )
+                        })}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="purchase_price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cena zakupu [PLN]</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="Cena zakupu"
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e)
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="margin"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Marża [%]</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          placeholder="Marża"
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e)
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -457,52 +597,22 @@ export default function InvertersPage() {
                   name="price"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Cena [PLN]</FormLabel>
+                      <FormLabel>Cena końcowa [PLN]</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="Cena" {...field} />
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="Cena końcowa"
+                          {...field}
+                          className="bg-gray-50"
+                          readOnly
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-
-              <FormField
-                control={form.control}
-                name="type"
-                render={() => (
-                  <FormItem>
-                    <FormLabel>Typ falownika</FormLabel>
-                    <div className="flex flex-wrap gap-2">
-                      {["grid", "hybrid", "offgrid"].map((type) => {
-                        const typeInfo = getInverterTypeLabel(type)
-                        return (
-                          <Badge
-                            key={type}
-                            className={`${
-                              form.watch("type")?.includes(type) ? typeInfo.color : "bg-gray-100 text-gray-500"
-                            } cursor-pointer px-3 py-1`}
-                            onClick={() => {
-                              const currentTypes = form.getValues("type") || []
-                              if (currentTypes.includes(type)) {
-                                form.setValue(
-                                  "type",
-                                  currentTypes.filter((t) => t !== type),
-                                )
-                              } else {
-                                form.setValue("type", [...currentTypes, type])
-                              }
-                            }}
-                          >
-                            {typeInfo.label}
-                          </Badge>
-                        )
-                      })}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <DialogFooter>
                 <Button
